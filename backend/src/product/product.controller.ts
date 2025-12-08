@@ -1,6 +1,3 @@
-// src/product /product.controller.ts
-import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import { ProductEntity } from './entities/product.entity';
 import {
   Controller,
   Get,
@@ -12,33 +9,51 @@ import {
   ParseIntPipe,
   NotFoundException,
 } from '@nestjs/common';
+import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { ProductEntity } from './entities/product.entity';
 
 @Controller('product')
 @ApiTags('product')
 export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
+  // ----------------------
+  // CREATE
+  // ----------------------
   @Post()
   @ApiCreatedResponse({ type: ProductEntity })
-  create(@Body() createProductDto: CreateProductDto) {
-    return this.productService.create(createProductDto);
+  async create(@Body() createProductDto: CreateProductDto) {
+    const product = await this.productService.create(createProductDto);
+    return new ProductEntity(product);
   }
 
+  // ----------------------
+  // GET ALL
+  // ----------------------
   @Get()
   @ApiOkResponse({ type: ProductEntity, isArray: true })
-  findAll() {
-    return this.productService.findAll();
+  async findAll() {
+    const products = await this.productService.findAll();
+    return products.map((p) => new ProductEntity(p));
   }
 
+  // ----------------------
+  // GET INACTIVE (你的额外功能)
+  // ----------------------
   @Get('inactive')
   @ApiOkResponse({ type: ProductEntity, isArray: true })
-  findInactive() {
-    return this.productService.findInactive();
+  async findInactive() {
+    const products = await this.productService.findInactive();
+    return products.map((p) => new ProductEntity(p));
   }
 
+  // ----------------------
+  // GET ONE BY ID
+  // ----------------------
   @Get(':id')
   @ApiOkResponse({ type: ProductEntity })
   async findOne(@Param('id', ParseIntPipe) id: number) {
@@ -48,21 +63,29 @@ export class ProductController {
       throw new NotFoundException(`Product with ID ${id} does not exist.`);
     }
 
-    return product;
+    return new ProductEntity(product);
   }
 
+  // ----------------------
+  // UPDATE
+  // ----------------------
   @Patch(':id')
   @ApiOkResponse({ type: ProductEntity })
-  update(
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateProductDto: UpdateProductDto,
   ) {
-    return this.productService.update(id, updateProductDto);
+    const product = await this.productService.update(id, updateProductDto);
+    return new ProductEntity(product);
   }
 
+  // ----------------------
+  // DELETE
+  // ----------------------
   @Delete(':id')
   @ApiOkResponse({ type: ProductEntity })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.productService.remove(id);
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    const product = await this.productService.remove(id);
+    return new ProductEntity(product);
   }
 }

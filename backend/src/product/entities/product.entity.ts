@@ -1,5 +1,6 @@
 import { Product } from '@prisma/client';
 import { ApiProperty } from '@nestjs/swagger';
+import { UserEntity } from 'src/user/entities/user.entity';
 
 export class ProductEntity implements Product {
   @ApiProperty()
@@ -31,4 +32,15 @@ export class ProductEntity implements Product {
 
   @ApiProperty()
   updatedAt: Date;
+
+  @ApiProperty({ required: false, type: UserEntity })
+  user?: UserEntity;
+
+  constructor({ user, ...data }: Partial<ProductEntity>) {
+    Object.assign(this, data);
+
+    if (user) {
+      this.user = new UserEntity(user);
+    }
+  }
 }

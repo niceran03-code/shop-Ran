@@ -1,90 +1,103 @@
-// prisma/seed.ts
-
 import { PrismaClient } from '@prisma/client';
-
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log(' Seeding database...');
-
-  // ---------------------------
-  // 1. Create Admin User
-  // ---------------------------
-  const adminUser = await prisma.user.upsert({
-    where: { email: 'admin@example.com' },
+  // Create dummy users
+  const user1 = await prisma.user.upsert({
+    where: { email: 'user1@example.com' },
     update: {},
     create: {
-      username: 'admin',
-      email: 'admin@example.com',
-      password: 'hashed-password', //  显示用途，真实项目请替换为 bcrypt 哈希
+      email: 'user1@example.com',
+      username: 'user1',
+      password: 'password1', // 演示用，真实项目请使用 hash!
     },
   });
 
-  // ---------------------------
-  // 2. Create Categories
-  // ---------------------------
-  const electronics = await prisma.category.upsert({
-    where: { id: 1 },
+  const user2 = await prisma.user.upsert({
+    where: { email: 'user2@example.com' },
+    update: {},
+    create: {
+      email: 'user2@example.com',
+      username: 'user2',
+      password: 'password2',
+    },
+  });
+
+  // Create dummy categories
+  const parentCategory = await prisma.category.upsert({
+    where: { name: 'Electronics' },
     update: {},
     create: {
       name: 'Electronics',
     },
   });
 
-  const phones = await prisma.category.upsert({
-    where: { id: 2 },
+  const childCategory = await prisma.category.upsert({
+    where: { name: 'Audio Devices' },
     update: {},
     create: {
-      name: 'Mobile Phones',
-      parentId: electronics.id,
+      name: 'Audio Devices',
+      parentId: parentCategory.id,
     },
   });
 
-  // ---------------------------
-  // 3. Create Products
-  // ---------------------------
-  const product1 = await prisma.product.upsert({
-    where: { name: 'iPhone 15' },
+  const kitchenCategory = await prisma.category.upsert({
+    where: { name: 'Kitchen' },
     update: {},
     create: {
-      name: 'iPhone 15',
-      price: 899.99,
-      stock: 100,
-      isActive: true,
-      description: 'Latest Apple iPhone 15',
-      userId: adminUser.id,
-      categoryId: phones.id,
+      name: 'Kitchen',
+    },
+  });
+
+  // Create dummy products
+  const product1 = await prisma.product.upsert({
+    where: { name: 'Wireless Bluetooth Headphones' },
+    update: {},
+    create: {
+      name: 'Wireless Bluetooth Headphones',
+      price: 129.99,
+      stock: 50,
+      description: 'High-quality wireless headphones with noise cancellation.',
+      userId: user1.id,
+      categoryId: childCategory.id,
     },
   });
 
   const product2 = await prisma.product.upsert({
-    where: { name: 'Samsung Galaxy S24' },
+    where: { name: 'Ceramic Coffee Mug' },
     update: {},
     create: {
-      name: 'Samsung Galaxy S24',
-      price: 799.99,
-      stock: 50,
-      isActive: true,
-      description: 'Samsung flagship smartphone',
-      userId: adminUser.id,
-      categoryId: phones.id,
+      name: 'Ceramic Coffee Mug',
+      price: 12.5,
+      stock: 200,
+      description: 'Durable ceramic mug for hot or cold beverages.',
+      userId: user2.id,
+      categoryId: kitchenCategory.id,
     },
   });
 
-  console.log({
-    adminUser,
-    electronics,
-    phones,
-    product1,
-    product2,
+  const product3 = await prisma.product.upsert({
+    where: { name: '4K Smart TV' },
+    update: {},
+    create: {
+      name: '4K Smart TV',
+      price: 899.99,
+      stock: 20,
+      description: 'Large 4K UHD smart TV with HDR support.',
+      userId: user1.id,
+      categoryId: parentCategory.id,
+    },
   });
 
-  console.log(' Database seeded successfully!');
+  console.log({ user1, user2, product1, product2, product3 });
 }
 
 main()
-  .catch((err) => {
-    console.error(' Seeding failed:', err);
+  .then(() => {
+    console.log('🌱 Seeder executed successfully!');
+  })
+  .catch((e) => {
+    console.error(e);
     process.exit(1);
   })
   .finally(async () => {
