@@ -1,0 +1,1105 @@
+---
+description: Deployment and CI/CD rules
+globs:
+alwaysApply: false
+---
+# Cursor Rules - 部署工具规范
+
+## GitHub Actions开发规范
+
+### 基础工作流配置
+
+```yaml
+# .github/workflows/ci.yml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  NODE_VERSION: '18'
+  AWS_REGION: 'us-east-1'
+
+jobs:
+  # 代码质量检查
+  lint-and-test:
+    name: Lint and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm ci
+
+      - name: Run ESLint
+        run: pnpm run lint
+
+      - name: Run TypeScript check
+        run: pnpm run type-check
+
+      - name: Run unit tests
+        run: pnpm run test:unit
+
+      - name: Run integration tests
+        run: pnpm run test:integration
+        env:
+          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          REDIS_URL: ${{ secrets.TEST_REDIS_URL }}
+
+      - name: Upload test coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+
+  # 安全扫描
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
+      - name: Run pnpm audit
+        run: pnpm audit --audit-level=high
+
+  # 构建和部署
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    needs: [lint-and-test, security-scan]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm ci
+
+      - name: Run database migrations
+        run: pnpm run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Build application
+        run: pnpm run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ecommerce-api
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Deploy to ECS
+        run: |
+          aws ecs update-service \
+            --cluster ecommerce-cluster \
+            --service ecommerce-api \
+            --force-new-deployment
+
+      - name: Wait for deployment
+        run: |
+          aws ecs wait services-stable \
+            --cluster ecommerce-cluster \
+            --services ecommerce-api
+
+      - name: Run smoke tests
+        run: pnpm run test:smoke
+        env:
+          API_URL: ${{ secrets.API_URL }}
+
+  # 性能测试
+  performance-test:
+    name: Performance Test
+    runs-on: ubuntu-latest
+    needs: build-and-deploy
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm ci
+
+      - name: Run performance tests
+        run: pnpm run test:performance
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          PERFORMANCE_THRESHOLD: '1000' # 1秒响应时间阈值
+
+      - name: Upload performance report
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report
+          path: performance-report.json
+```
+
+### 前端部署工作流
+
+```yaml
+# .github/workflows/frontend-deploy.yml
+name: Frontend Deploy
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-deploy.yml'
+
+jobs:
+  deploy-frontend:
+    name: Deploy Frontend
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: pnpm ci
+
+      - name: Run linting
+        working-directory: ./frontend
+        run: pnpm run lint
+
+      - name: Run tests
+        working-directory: ./frontend
+        run: pnpm run test
+
+      - name: Build application
+        working-directory: ./frontend
+        run: pnpm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_APP_ENV: production
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync ./frontend/dist s3://${{ secrets.S3_BUCKET }} --delete
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+```
+
+### 数据库迁移工作流
+
+```yaml
+# .github/workflows/database-migrate.yml
+name: Database Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to migrate'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  migrate-database:
+    name: Migrate Database
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm ci
+
+      - name: Run database migration
+        run: pnpm run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NODE_ENV: ${{ github.event.inputs.environment }}
+
+      - name: Run database seed (staging only)
+        if: github.event.inputs.environment == 'staging'
+        run: pnpm run db:seed
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NODE_ENV: staging
+
+      - name: Verify migration
+        run: pnpm run db:verify
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+```
+
+## 代码质量检查规范
+
+### ESLint配置
+
+```javascript
+// .eslintrc.js
+module.exports = {
+  root: true,
+  parser: '@typescript-eslint/parser',
+  parserOptions: {
+    ecmaVersion: 2020,
+    sourceType: 'module',
+    project: './tsconfig.json',
+  },
+  plugins: [
+    '@typescript-eslint',
+    'prettier',
+    'import',
+    'security',
+    'sonarjs',
+  ],
+  extends: [
+    'eslint:recommended',
+    '@typescript-eslint/recommended',
+    '@typescript-eslint/recommended-requiring-type-checking',
+    'prettier',
+    'plugin:import/typescript',
+    'plugin:security/recommended',
+    'plugin:sonarjs/recommended',
+  ],
+  rules: {
+    // TypeScript规则
+    '@typescript-eslint/no-unused-vars': 'error',
+    '@typescript-eslint/explicit-function-return-type': 'warn',
+    '@typescript-eslint/no-explicit-any': 'error',
+    '@typescript-eslint/prefer-const': 'error',
+    '@typescript-eslint/no-var-requires': 'error',
+
+    // 导入规则
+    'import/order': [
+      'error',
+      {
+        groups: [
+          'builtin',
+          'external',
+          'internal',
+          'parent',
+          'sibling',
+          'index',
+        ],
+        'newlines-between': 'always',
+        alphabetize: {
+          order: 'asc',
+          caseInsensitive: true,
+        },
+      },
+    ],
+    'import/no-unresolved': 'error',
+    'import/no-duplicates': 'error',
+
+    // 安全规则
+    'security/detect-object-injection': 'warn',
+    'security/detect-non-literal-regexp': 'warn',
+
+    // 代码质量规则
+    'sonarjs/cognitive-complexity': ['error', 15],
+    'sonarjs/no-duplicate-string': 'error',
+    'sonarjs/no-redundant-boolean': 'error',
+
+    // 通用规则
+    'no-console': 'warn',
+    'no-debugger': 'error',
+    'prefer-const': 'error',
+    'no-var': 'error',
+  },
+  settings: {
+    'import/resolver': {
+      typescript: {
+        alwaysTryTypes: true,
+        project: './tsconfig.json',
+      },
+    },
+  },
+  overrides: [
+    {
+      files: ['**/*.test.ts', '**/*.spec.ts'],
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off',
+        'sonarjs/no-duplicate-string': 'off',
+      },
+    },
+  ],
+};
+```
+
+### Prettier配置
+
+```json
+// .prettierrc
+{
+  "semi": true,
+  "trailingComma": "es5",
+  "singleQuote": true,
+  "printWidth": 80,
+  "tabWidth": 2,
+  "useTabs": false,
+  "bracketSpacing": true,
+  "arrowParens": "avoid",
+  "endOfLine": "lf",
+  "quoteProps": "as-needed",
+  "jsxSingleQuote": true,
+  "bracketSameLine": false
+}
+```
+
+### TypeScript配置
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "removeComments": true,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": false,
+    "noUncheckedIndexedAccess": true,
+    "baseUrl": "./",
+    "paths": {
+      "@/*": ["src/*"],
+      "@config/*": ["src/config/*"],
+      "@services/*": ["src/services/*"],
+      "@utils/*": ["src/utils/*"],
+      "@types/*": ["src/types/*"]
+    }
+  },
+  "include": [
+    "src/**/*",
+    "tests/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "coverage"
+  ]
+}
+```
+
+## 测试规范
+
+### Jest配置
+
+```javascript
+// jest.config.js
+module.exports = {
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  roots: ['<rootDir>/src', '<rootDir>/tests'],
+  testMatch: [
+    '**/__tests__/**/*.ts',
+    '**/?(*.)+(spec|test).ts',
+  ],
+  transform: {
+    '^.+\\.ts$': 'ts-jest',
+  },
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/**/*.d.ts',
+    '!src/**/*.test.ts',
+    '!src/**/*.spec.ts',
+  ],
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov', 'html'],
+  coverageThreshold: {
+    global: {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80,
+    },
+  },
+  setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
+  testTimeout: 10000,
+  verbose: true,
+};
+```
+
+### 测试设置文件
+
+```typescript
+// tests/setup.ts
+import { config } from 'dotenv';
+
+// 加载测试环境变量
+config({ path: '.env.test' });
+
+// 全局测试配置
+beforeAll(async () => {
+  // 设置测试数据库连接
+  // 清理测试数据
+});
+
+afterAll(async () => {
+  // 清理测试数据库
+  // 关闭连接
+});
+
+// 全局测试工具函数
+global.testUtils = {
+  createTestUser: async () => {
+    // 创建测试用户
+  },
+  createTestProduct: async () => {
+    // 创建测试产品
+  },
+  cleanupTestData: async () => {
+    // 清理测试数据
+  },
+};
+```
+
+### 单元测试示例
+
+```typescript
+// tests/unit/services/product.service.test.ts
+import { ProductService } from '../../../src/services/product.service';
+import { PrismaService } from '../../../src/services/prisma.service';
+import { CreateProductDto } from '../../../src/dto/create-product.dto';
+
+describe('ProductService', () => {
+  let productService: ProductService;
+  let prismaService: jest.Mocked<PrismaService>;
+
+  beforeEach(() => {
+    prismaService = {
+      product: {
+        create: jest.fn(),
+        findMany: jest.fn(),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+      },
+    } as any;
+
+    productService = new ProductService(prismaService);
+  });
+
+  describe('createProduct', () => {
+    it('should create a product successfully', async () => {
+      const createProductDto: CreateProductDto = {
+        name: 'Test Product',
+        description: 'Test Description',
+        price: 99.99,
+        categoryId: 'category-1',
+      };
+
+      const expectedProduct = {
+        id: 'product-1',
+        ...createProductDto,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      prismaService.product.create.mockResolvedValue(expectedProduct);
+
+      const result = await productService.createProduct(createProductDto);
+
+      expect(prismaService.product.create).toHaveBeenCalledWith({
+        data: createProductDto,
+      });
+      expect(result).toEqual(expectedProduct);
+    });
+
+    it('should throw error when product name already exists', async () => {
+      const createProductDto: CreateProductDto = {
+        name: 'Existing Product',
+        description: 'Test Description',
+        price: 99.99,
+        categoryId: 'category-1',
+      };
+
+      prismaService.product.create.mockRejectedValue({
+        code: 'P2002',
+        message: 'Unique constraint failed',
+      });
+
+      await expect(productService.createProduct(createProductDto))
+        .rejects
+        .toThrow('Product with this name already exists');
+    });
+  });
+
+  describe('findAll', () => {
+    it('should return paginated products', async () => {
+      const mockProducts = [
+        { id: '1', name: 'Product 1', price: 100 },
+        { id: '2', name: 'Product 2', price: 200 },
+      ];
+
+      prismaService.product.findMany.mockResolvedValue(mockProducts);
+      prismaService.product.count.mockResolvedValue(2);
+
+      const result = await productService.findAll({ page: 1, limit: 10 });
+
+      expect(result).toEqual({
+        data: mockProducts,
+        meta: {
+          page: 1,
+          limit: 10,
+          total: 2,
+          totalPages: 1,
+        },
+      });
+    });
+  });
+});
+```
+
+### 集成测试示例
+
+```typescript
+// tests/integration/product.controller.test.ts
+import request from 'supertest';
+import { app } from '../../src/app';
+import { PrismaService } from '../../src/services/prisma.service';
+
+describe('ProductController Integration Tests', () => {
+  let prismaService: PrismaService;
+
+  beforeAll(async () => {
+    prismaService = new PrismaService();
+    await prismaService.$connect();
+  });
+
+  afterAll(async () => {
+    await prismaService.$disconnect();
+  });
+
+  beforeEach(async () => {
+    // 清理测试数据
+    await prismaService.product.deleteMany();
+  });
+
+  describe('GET /api/products', () => {
+    it('should return products list', async () => {
+      // 创建测试数据
+      await prismaService.product.create({
+        data: {
+          name: 'Test Product',
+          description: 'Test Description',
+          price: 99.99,
+          categoryId: 'category-1',
+        },
+      });
+
+      const response = await request(app)
+        .get('/api/products')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0].name).toBe('Test Product');
+    });
+
+    it('should handle pagination correctly', async () => {
+      // 创建多个测试产品
+      for (let i = 1; i <= 15; i++) {
+        await prismaService.product.create({
+          data: {
+            name: `Product ${i}`,
+            description: `Description ${i}`,
+            price: 100 + i,
+            categoryId: 'category-1',
+          },
+        });
+      }
+
+      const response = await request(app)
+        .get('/api/products?page=2&limit=10')
+        .expect(200);
+
+      expect(response.body.meta.page).toBe(2);
+      expect(response.body.meta.limit).toBe(10);
+      expect(response.body.meta.total).toBe(15);
+      expect(response.body.data).toHaveLength(5);
+    });
+  });
+
+  describe('POST /api/products', () => {
+    it('should create a new product', async () => {
+      const productData = {
+        name: 'New Product',
+        description: 'New Description',
+        price: 149.99,
+        categoryId: 'category-1',
+      };
+
+      const response = await request(app)
+        .post('/api/products')
+        .send(productData)
+        .expect(201);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.name).toBe(productData.name);
+      expect(response.body.data.price).toBe(productData.price);
+    });
+
+    it('should validate required fields', async () => {
+      const invalidProductData = {
+        description: 'Missing name and price',
+      };
+
+      const response = await request(app)
+        .post('/api/products')
+        .send(invalidProductData)
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.errors).toContain('name is required');
+      expect(response.body.errors).toContain('price is required');
+    });
+  });
+});
+```
+
+## 性能测试规范
+
+### 性能测试配置
+
+```typescript
+// tests/performance/load-test.ts
+import { check } from 'k6';
+import http from 'k6/http';
+import { Rate } from 'k6/metrics';
+
+const errorRate = new Rate('errors');
+
+export const options = {
+  stages: [
+    { duration: '2m', target: 100 }, // 2分钟内增加到100个用户
+    { duration: '5m', target: 100 }, // 保持100个用户5分钟
+    { duration: '2m', target: 0 },   // 2分钟内减少到0个用户
+  ],
+  thresholds: {
+    http_req_duration: ['p(95)<500'], // 95%的请求在500ms内完成
+    http_req_failed: ['rate<0.1'],    // 错误率小于10%
+    errors: ['rate<0.1'],
+  },
+};
+
+export default function() {
+  const baseUrl = __ENV.API_URL || 'http://localhost:3000';
+
+  // 测试产品列表API
+  const productsResponse = http.get(`${baseUrl}/api/products`);
+  check(productsResponse, {
+    'products status is 200': (r) => r.status === 200,
+    'products response time < 200ms': (r) => r.timings.duration < 200,
+  });
+
+  if (productsResponse.status !== 200) {
+    errorRate.add(1);
+  }
+
+  // 测试产品详情API
+  const productId = Math.floor(Math.random() * 100) + 1;
+  const productResponse = http.get(`${baseUrl}/api/products/${productId}`);
+  check(productResponse, {
+    'product status is 200': (r) => r.status === 200,
+    'product response time < 300ms': (r) => r.timings.duration < 300,
+  });
+
+  if (productResponse.status !== 200) {
+    errorRate.add(1);
+  }
+
+  // 模拟用户思考时间
+  http.batch([
+    ['GET', `${baseUrl}/api/categories`],
+    ['GET', `${baseUrl}/api/products?category=electronics`],
+  ]);
+
+  // 添加随机延迟
+  const delay = Math.random() * 1000 + 500; // 500-1500ms
+  http.get(`${baseUrl}/api/health`);
+}
+```
+
+### 压力测试脚本
+
+```typescript
+// tests/performance/stress-test.ts
+import { check } from 'k6';
+import http from 'k6/http';
+
+export const options = {
+  stages: [
+    { duration: '2m', target: 50 },   // 正常负载
+    { duration: '5m', target: 100 },  // 中等负载
+    { duration: '5m', target: 200 },  // 高负载
+    { duration: '5m', target: 300 },  // 压力测试
+    { duration: '2m', target: 0 },    // 恢复
+  ],
+  thresholds: {
+    http_req_duration: ['p(95)<1000'], // 95%的请求在1秒内完成
+    http_req_failed: ['rate<0.05'],    // 错误率小于5%
+  },
+};
+
+export default function() {
+  const baseUrl = __ENV.API_URL || 'http://localhost:3000';
+
+  // 并发请求测试
+  const responses = http.batch([
+    ['GET', `${baseUrl}/api/products`],
+    ['GET', `${baseUrl}/api/categories`],
+    ['GET', `${baseUrl}/api/products/1`],
+    ['GET', `${baseUrl}/api/health`],
+  ]);
+
+  responses.forEach((response, index) => {
+    check(response, {
+      [`response ${index} status is 200`]: (r) => r.status === 200,
+      [`response ${index} time < 1000ms`]: (r) => r.timings.duration < 1000,
+    });
+  });
+}
+```
+
+## 监控和告警规范
+
+### 应用监控配置
+
+```typescript
+// src/monitoring/app-monitor.ts
+import { Logger } from '@nestjs/common';
+import { MetricsService } from './metrics.service';
+
+export class AppMonitor {
+  private readonly logger = new Logger(AppMonitor.name);
+  private metricsService: MetricsService;
+
+  constructor() {
+    this.metricsService = new MetricsService();
+  }
+
+  // 监控API响应时间
+  monitorApiResponseTime(req: any, res: any, next: any) {
+    const start = Date.now();
+
+    res.on('finish', () => {
+      const duration = Date.now() - start;
+      
+      this.metricsService.recordApiResponseTime({
+        method: req.method,
+        path: req.path,
+        statusCode: res.statusCode,
+        duration,
+      });
+
+      // 记录慢查询
+      if (duration > 1000) {
+        this.logger.warn(`Slow API request: ${req.method} ${req.path} - ${duration}ms`);
+      }
+    });
+
+    next();
+  }
+
+  // 监控数据库查询性能
+  monitorDatabaseQuery(query: string, duration: number) {
+    this.metricsService.recordDatabaseQuery({
+      query,
+      duration,
+    });
+
+    if (duration > 100) {
+      this.logger.warn(`Slow database query: ${query} - ${duration}ms`);
+    }
+  }
+
+  // 监控内存使用
+  monitorMemoryUsage() {
+    const usage = process.memoryUsage();
+    
+    this.metricsService.recordMemoryUsage({
+      rss: usage.rss,
+      heapUsed: usage.heapUsed,
+      heapTotal: usage.heapTotal,
+      external: usage.external,
+    });
+
+    // 内存使用率超过80%时告警
+    const heapUsagePercent = (usage.heapUsed / usage.heapTotal) * 100;
+    if (heapUsagePercent > 80) {
+      this.logger.error(`High memory usage: ${heapUsagePercent.toFixed(2)}%`);
+    }
+  }
+
+  // 监控错误率
+  recordError(error: Error, context?: string) {
+    this.metricsService.recordError({
+      message: error.message,
+      stack: error.stack,
+      context,
+      timestamp: new Date(),
+    });
+
+    this.logger.error(`Application error: ${error.message}`, error.stack);
+  }
+}
+```
+
+### 健康检查端点
+
+```typescript
+// src/controllers/health.controller.ts
+import { Controller, Get } from '@nestjs/common';
+import { HealthCheck, HealthCheckService, TypeOrmHealthIndicator } from '@nestjs/terminus';
+import { RedisHealthIndicator } from './redis-health.indicator';
+
+@Controller('health')
+export class HealthController {
+  constructor(
+    private health: HealthCheckService,
+    private db: TypeOrmHealthIndicator,
+    private redis: RedisHealthIndicator,
+  ) {}
+
+  @Get()
+  @HealthCheck()
+  check() {
+    return this.health.check([
+      // 数据库健康检查
+      () => this.db.pingCheck('database'),
+      
+      // Redis健康检查
+      () => this.redis.pingCheck('redis'),
+      
+      // 自定义健康检查
+      () => this.customHealthCheck(),
+    ]);
+  }
+
+  @Get('detailed')
+  async detailedCheck() {
+    const checks = await Promise.all([
+      this.checkDatabaseConnection(),
+      this.checkRedisConnection(),
+      this.checkExternalServices(),
+      this.checkDiskSpace(),
+      this.checkMemoryUsage(),
+    ]);
+
+    const isHealthy = checks.every(check => check.status === 'up');
+
+    return {
+      status: isHealthy ? 'healthy' : 'unhealthy',
+      timestamp: new Date().toISOString(),
+      checks,
+    };
+  }
+
+  private async customHealthCheck() {
+    try {
+      // 检查关键业务逻辑
+      const checks = await Promise.all([
+        this.checkDatabaseConnection(),
+        this.checkRedisConnection(),
+        this.checkExternalServices(),
+      ]);
+
+      const isHealthy = checks.every(check => check.status === 'up');
+
+      return {
+        custom: {
+          status: isHealthy ? 'up' : 'down',
+          details: checks,
+        },
+      };
+    } catch (error) {
+      return {
+        custom: {
+          status: 'down',
+          error: error.message,
+        },
+      };
+    }
+  }
+
+  private async checkDatabaseConnection() {
+    try {
+      // 执行简单查询
+      const result = await this.db.pingCheck('database');
+      return { name: 'database', status: 'up', responseTime: result.database.responseTime };
+    } catch (error) {
+      return { name: 'database', status: 'down', error: error.message };
+    }
+  }
+
+  private async checkRedisConnection() {
+    try {
+      const result = await this.redis.pingCheck('redis');
+      return { name: 'redis', status: 'up', responseTime: result.redis.responseTime };
+    } catch (error) {
+      return { name: 'redis', status: 'down', error: error.message };
+    }
+  }
+
+  private async checkExternalServices() {
+    const services = [
+      { name: 'payment-gateway', url: process.env.PAYMENT_GATEWAY_URL },
+      { name: 'email-service', url: process.env.EMAIL_SERVICE_URL },
+    ];
+
+    const checks = await Promise.all(
+      services.map(async (service) => {
+        try {
+          const start = Date.now();
+          const response = await fetch(`${service.url}/health`);
+          const responseTime = Date.now() - start;
+
+          return {
+            name: service.name,
+            status: response.ok ? 'up' : 'down',
+            responseTime,
+            statusCode: response.status,
+          };
+        } catch (error) {
+          return {
+            name: service.name,
+            status: 'down',
+            error: error.message,
+          };
+        }
+      })
+    );
+
+    return { name: 'external-services', status: 'up', details: checks };
+  }
+
+  private async checkDiskSpace() {
+    try {
+      const fs = require('fs').promises;
+      const path = require('path');
+      
+      const stats = await fs.statfs(path.resolve('.'));
+      const freeSpace = stats.bavail * stats.bsize;
+      const totalSpace = stats.blocks * stats.bsize;
+      const usagePercent = ((totalSpace - freeSpace) / totalSpace) * 100;
+
+      return {
+        name: 'disk-space',
+        status: usagePercent < 90 ? 'up' : 'down',
+        usagePercent: usagePercent.toFixed(2),
+        freeSpace: (freeSpace / 1024 / 1024 / 1024).toFixed(2) + ' GB',
+      };
+    } catch (error) {
+      return {
+        name: 'disk-space',
+        status: 'down',
+        error: error.message,
+      };
+    }
+  }
+
+  private async checkMemoryUsage() {
+    const usage = process.memoryUsage();
+    const heapUsagePercent = (usage.heapUsed / usage.heapTotal) * 100;
+
+    return {
+      name: 'memory-usage',
+      status: heapUsagePercent < 80 ? 'up' : 'down',
+      heapUsagePercent: heapUsagePercent.toFixed(2),
+      heapUsed: (usage.heapUsed / 1024 / 1024).toFixed(2) + ' MB',
+      heapTotal: (usage.heapTotal / 1024 / 1024).toFixed(2) + ' MB',
+    };
+  }
+}
+```

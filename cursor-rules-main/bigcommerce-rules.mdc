@@ -1,0 +1,1806 @@
+---
+description: BigCommerce development rules
+globs:
+alwaysApply: false
+---
+# Cursor Rules - BigCommerce集成规范
+
+## BigCommerce API开发规范
+
+### API客户端配置
+
+```typescript
+// services/bigcommerce-api.service.ts
+import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
+
+export class BigCommerceApiService {
+  private client: AxiosInstance;
+  private storeHash: string;
+  private accessToken: string;
+
+  constructor() {
+    this.storeHash = process.env.BIGCOMMERCE_STORE_HASH!;
+    this.accessToken = process.env.BIGCOMMERCE_ACCESS_TOKEN!;
+
+    this.client = axios.create({
+      baseURL: `https://api.bigcommerce.com/stores/${this.storeHash}`,
+      headers: {
+        'X-Auth-Token': this.accessToken,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      timeout: 10000,
+    });
+
+    // 请求拦截器
+    this.client.interceptors.request.use(
+      (config) => {
+        console.log(`BigCommerce API Request: ${config.method?.toUpperCase()} ${config.url}`);
+        return config;
+      },
+      (error) => {
+        console.error('BigCommerce API Request Error:', error);
+        return Promise.reject(error);
+      }
+    );
+
+    // 响应拦截器
+    this.client.interceptors.response.use(
+      (response) => {
+        console.log(`BigCommerce API Response: ${response.status} ${response.config.url}`);
+        return response;
+      },
+      (error) => {
+        console.error('BigCommerce API Response Error:', error.response?.data || error.message);
+        return Promise.reject(error);
+      }
+    );
+  }
+
+  // 获取产品列表
+  async getProducts(params?: {
+    page?: number;
+    limit?: number;
+    category_id?: number;
+    keyword?: string;
+    sort?: string;
+  }): Promise<BigCommerceProduct[]> {
+    const response = await this.client.get('/v3/catalog/products', { params });
+    return response.data.data;
+  }
+
+  // 获取单个产品
+  async getProduct(productId: number): Promise<BigCommerceProduct> {
+    const response = await this.client.get(`/v3/catalog/products/${productId}`);
+    return response.data.data;
+  }
+
+  // 创建产品
+  async createProduct(productData: CreateProductRequest): Promise<BigCommerceProduct> {
+    const response = await this.client.post('/v3/catalog/products', productData);
+    return response.data.data;
+  }
+
+  // 更新产品
+  async updateProduct(productId: number, productData: UpdateProductRequest): Promise<BigCommerceProduct> {
+    const response = await this.client.put(`/v3/catalog/products/${productId}`, productData);
+    return response.data.data;
+  }
+
+  // 删除产品
+  async deleteProduct(productId: number): Promise<void> {
+    await this.client.delete(`/v3/catalog/products/${productId}`);
+  }
+
+  // 获取订单列表
+  async getOrders(params?: {
+    page?: number;
+    limit?: number;
+    status_id?: number;
+    date_created?: string;
+  }): Promise<BigCommerceOrder[]> {
+    const response = await this.client.get('/v2/orders', { params });
+    return response.data;
+  }
+
+  // 获取单个订单
+  async getOrder(orderId: number): Promise<BigCommerceOrder> {
+    const response = await this.client.get(`/v2/orders/${orderId}`);
+    return response.data;
+  }
+
+  // 更新订单状态
+  async updateOrderStatus(orderId: number, statusId: number): Promise<BigCommerceOrder> {
+    const response = await this.client.put(`/v2/orders/${orderId}`, {
+      status_id: statusId,
+    });
+    return response.data;
+  }
+
+  // 获取客户列表
+  async getCustomers(params?: {
+    page?: number;
+    limit?: number;
+    email?: string;
+  }): Promise<BigCommerceCustomer[]> {
+    const response = await this.client.get('/v2/customers', { params });
+    return response.data;
+  }
+
+  // 创建客户
+  async createCustomer(customerData: CreateCustomerRequest): Promise<BigCommerceCustomer> {
+    const response = await this.client.post('/v2/customers', customerData);
+    return response.data;
+  }
+}
+```
+
+### 类型定义
+
+```typescript
+// types/bigcommerce.types.ts
+export interface BigCommerceProduct {
+  id: number;
+  name: string;
+  type: string;
+  sku: string;
+  description: string;
+  weight: number;
+  width: number;
+  depth: number;
+  height: number;
+  price: number;
+  cost_price: number;
+  retail_price: number;
+  sale_price: number;
+  map_price: number;
+  tax_class_id: number;
+  product_tax_code: string;
+  categories: number[];
+  brand_id: number;
+  option_set_id: number;
+  option_set_display: string;
+  inventory_level: number;
+  inventory_warning_level: number;
+  inventory_tracking: string;
+  reviews_rating_sum: number;
+  reviews_count: number;
+  total_sold: number;
+  fixed_cost_shipping_price: number;
+  is_free_shipping: boolean;
+  is_visible: boolean;
+  is_featured: boolean;
+  related_products: number[];
+  warranty: string;
+  bin_picking_number: string;
+  layout_file: string;
+  upc: string;
+  mpn: string;
+  gtin: string;
+  search_keywords: string;
+  availability: string;
+  availability_description: string;
+  gift_wrapping_options_type: string;
+  sort_order: number;
+  condition: string;
+  is_condition_shown: boolean;
+  order_quantity_minimum: number;
+  order_quantity_maximum: number;
+  page_title: string;
+  meta_keywords: string[];
+  meta_description: string;
+  date_created: string;
+  date_modified: string;
+  view_count: number;
+  preorder_release_date: string;
+  preorder_message: string;
+  is_preorder_only: boolean;
+  is_price_hidden: boolean;
+  price_hidden_label: string;
+  custom_url: {
+    url: string;
+    is_customized: boolean;
+  };
+  open_graph_type: string;
+  open_graph_title: string;
+  open_graph_description: string;
+  open_graph_use_meta_description: boolean;
+  open_graph_use_product_name: boolean;
+  open_graph_use_image: boolean;
+  variants: BigCommerceProductVariant[];
+  images: BigCommerceProductImage[];
+  videos: BigCommerceProductVideo[];
+  custom_fields: BigCommerceCustomField[];
+  bulk_pricing_rules: BigCommerceBulkPricingRule[];
+}
+
+export interface BigCommerceProductVariant {
+  id: number;
+  product_id: number;
+  sku: string;
+  sku_id: number;
+  price: number;
+  calculated_price: number;
+  sale_price: number;
+  retail_price: number;
+  map_price: number;
+  weight: number;
+  calculated_weight: number;
+  width: number;
+  depth: number;
+  height: number;
+  inventory_level: number;
+  inventory_warning_level: number;
+  bin_picking_number: string;
+  option_values: BigCommerceOptionValue[];
+}
+
+export interface BigCommerceProductImage {
+  id: number;
+  product_id: number;
+  url_standard: string;
+  url_thumbnail: string;
+  url_tiny: string;
+  url_zoom: string;
+  sort_order: number;
+  is_thumbnail: boolean;
+  description: string;
+}
+
+export interface BigCommerceOrder {
+  id: number;
+  customer_id: number;
+  date_created: string;
+  date_modified: string;
+  date_shipped: string;
+  status_id: number;
+  status: string;
+  custom_status: string;
+  currency_id: number;
+  currency_code: string;
+  currency_exchange_rate: string;
+  default_currency_id: number;
+  default_currency_code: string;
+  store_credit_amount: number;
+  subtotal_ex_tax: number;
+  subtotal_inc_tax: number;
+  subtotal_tax: number;
+  base_shipping_cost: number;
+  shipping_cost_ex_tax: number;
+  shipping_cost_inc_tax: number;
+  shipping_cost_tax: number;
+  shipping_cost_tax_class_id: number;
+  base_handling_cost: number;
+  handling_cost_ex_tax: number;
+  handling_cost_inc_tax: number;
+  handling_cost_tax: number;
+  handling_cost_tax_class_id: number;
+  base_wrapping_cost: number;
+  wrapping_cost_ex_tax: number;
+  wrapping_cost_inc_tax: number;
+  wrapping_cost_tax: number;
+  wrapping_cost_tax_class_id: number;
+  total_ex_tax: number;
+  total_inc_tax: number;
+  total_tax: number;
+  items_total: number;
+  items_shipped: number;
+  payment_method: string;
+  payment_provider_id: string;
+  payment_status: string;
+  refunded_amount: number;
+  order_is_digital: boolean;
+  order_source: string;
+  external_id: string;
+  external_merchant_id: string;
+  coupon_discount: number;
+  customer_message: string;
+  staff_notes: string;
+  customer_locale: string;
+  external_source: string;
+  products: BigCommerceOrderProduct[];
+  shipping_addresses: BigCommerceAddress[];
+  coupons: BigCommerceCoupon[];
+}
+
+export interface BigCommerceCustomer {
+  id: number;
+  company: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  date_created: string;
+  date_modified: string;
+  store_credit: number;
+  registration_ip_address: string;
+  customer_group_id: number;
+  notes: string;
+  tax_exempt_category: string;
+  reset_pass_on_login: boolean;
+  accepts_marketing: boolean;
+  addresses: BigCommerceAddress[];
+}
+
+export interface BigCommerceAddress {
+  id: number;
+  customer_id: number;
+  first_name: string;
+  last_name: string;
+  company: string;
+  street_1: string;
+  street_2: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+  phone: string;
+  address_type: string;
+}
+
+// 请求类型
+export interface CreateProductRequest {
+  name: string;
+  type: string;
+  sku: string;
+  description: string;
+  price: number;
+  categories: number[];
+  weight: number;
+  is_visible: boolean;
+}
+
+export interface UpdateProductRequest extends Partial<CreateProductRequest> {}
+
+export interface CreateCustomerRequest {
+  first_name: string;
+  last_name: string;
+  email: string;
+  company?: string;
+  phone?: string;
+  notes?: string;
+}
+```
+
+## BigCommerce UI组件开发规范
+
+### 自定义组件开发
+
+```typescript
+// components/ProductCard/ProductCard.tsx
+import React from 'react';
+import { useProduct } from '@bigcommerce/storefront-data-hooks';
+import { ProductCardProps } from './ProductCard.types';
+
+export const ProductCard: React.FC<ProductCardProps> = ({
+  product,
+  showRating = true,
+  showPrice = true,
+  showAddToCart = true,
+  className = '',
+}) => {
+  const { addToCart, isAddingToCart } = useProduct();
+
+  const handleAddToCart = async () => {
+    try {
+      await addToCart(product.id, 1);
+    } catch (error) {
+      console.error('Failed to add product to cart:', error);
+    }
+  };
+
+  return (
+    <div className={`product-card ${className}`}>
+      <div className="product-card__image">
+        <img
+          src={product.images[0]?.url_standard || '/placeholder-image.jpg'}
+          alt={product.name}
+          loading="lazy"
+        />
+        {product.sale_price && product.sale_price < product.price && (
+          <span className="product-card__badge product-card__badge--sale">
+            Sale
+          </span>
+        )}
+      </div>
+
+      <div className="product-card__content">
+        <h3 className="product-card__title">
+          <a href={`/product/${product.id}`}>{product.name}</a>
+        </h3>
+
+        {showRating && product.reviews_count > 0 && (
+          <div className="product-card__rating">
+            <div className="rating">
+              {[...Array(5)].map((_, index) => (
+                <span
+                  key={index}
+                  className={`rating-star ${
+                    index < Math.round(product.reviews_rating_sum / product.reviews_count)
+                      ? 'rating-star--filled'
+                      : ''
+                  }`}
+                >
+                  ★
+                </span>
+              ))}
+            </div>
+            <span className="product-card__review-count">
+              ({product.reviews_count})
+            </span>
+          </div>
+        )}
+
+        {showPrice && (
+          <div className="product-card__price">
+            {product.sale_price && product.sale_price < product.price ? (
+              <>
+                <span className="product-card__price--sale">
+                  ${product.sale_price.toFixed(2)}
+                </span>
+                <span className="product-card__price--original">
+                  ${product.price.toFixed(2)}
+                </span>
+              </>
+            ) : (
+              <span className="product-card__price--current">
+                ${product.price.toFixed(2)}
+              </span>
+            )}
+          </div>
+        )}
+
+        {showAddToCart && (
+          <button
+            className="product-card__add-to-cart"
+            onClick={handleAddToCart}
+            disabled={isAddingToCart || product.inventory_level === 0}
+          >
+            {isAddingToCart ? 'Adding...' : 'Add to Cart'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+```
+
+### 组件类型定义
+
+```typescript
+// components/ProductCard/ProductCard.types.ts
+import { BigCommerceProduct } from '../../types/bigcommerce.types';
+
+export interface ProductCardProps {
+  product: BigCommerceProduct;
+  showRating?: boolean;
+  showPrice?: boolean;
+  showAddToCart?: boolean;
+  className?: string;
+}
+
+export interface ProductGridProps {
+  products: BigCommerceProduct[];
+  columns?: number;
+  showFilters?: boolean;
+  className?: string;
+}
+```
+
+### 自定义Hook开发
+
+```typescript
+// hooks/useBigCommerceProduct.ts
+import { useState, useEffect } from 'react';
+import { BigCommerceApiService } from '../services/bigcommerce-api.service';
+
+export const useBigCommerceProduct = (productId: number) => {
+  const [product, setProduct] = useState<BigCommerceProduct | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const apiService = new BigCommerceApiService();
+
+  useEffect(() => {
+    const fetchProduct = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const productData = await apiService.getProduct(productId);
+        setProduct(productData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch product');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (productId) {
+      fetchProduct();
+    }
+  }, [productId]);
+
+  return { product, loading, error };
+};
+
+// hooks/useBigCommerceCart.ts
+import { useState, useEffect } from 'react';
+import { BigCommerceApiService } from '../services/bigcommerce-api.service';
+
+export const useBigCommerceCart = () => {
+  const [cart, setCart] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const apiService = new BigCommerceApiService();
+
+  const addToCart = async (productId: number, quantity: number) => {
+    try {
+      // 实现添加到购物车的逻辑
+      const updatedCart = await apiService.addToCart(productId, quantity);
+      setCart(updatedCart);
+      return updatedCart;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add to cart');
+      throw err;
+    }
+  };
+
+  const removeFromCart = async (itemId: number) => {
+    try {
+      const updatedCart = await apiService.removeFromCart(itemId);
+      setCart(updatedCart);
+      return updatedCart;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove from cart');
+      throw err;
+    }
+  };
+
+  const updateCartItem = async (itemId: number, quantity: number) => {
+    try {
+      const updatedCart = await apiService.updateCartItem(itemId, quantity);
+      setCart(updatedCart);
+      return updatedCart;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update cart item');
+      throw err;
+    }
+  };
+
+  useEffect(() => {
+    const fetchCart = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const cartData = await apiService.getCart();
+        setCart(cartData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch cart');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCart();
+  }, []);
+
+  return {
+    cart,
+    loading,
+    error,
+    addToCart,
+    removeFromCart,
+    updateCartItem,
+  };
+};
+```
+
+## Cornerstone主题定制规范
+
+### 主题文件结构
+
+```bash
+cornerstone/
+├── assets/
+│   ├── js/
+│   │   ├── app.js
+│   │   ├── theme/
+│   │   │   ├── global/
+│   │   │   ├── pages/
+│   │   │   └── components/
+│   │   └── foundation/
+│   ├── scss/
+│   │   ├── components/
+│   │   ├── layout/
+│   │   ├── pages/
+│   │   └── settings/
+│   └── img/
+├── templates/
+│   ├── components/
+│   ├── pages/
+│   └── partials/
+├── lang/
+├── config.json
+└── package.json
+```
+
+### 自定义页面模板
+
+```handlebars
+<!-- templates/pages/custom-product-page.html -->
+{{#partial "page"}}
+<div class="custom-product-page">
+  <header class="page-header">
+    <h1 class="page-title">{{product.name}}</h1>
+  </header>
+
+  <div class="product-details">
+    <div class="product-gallery">
+      {{> components/products/product-gallery product=product}}
+    </div>
+
+    <div class="product-info">
+      <div class="product-price">
+        {{#if product.price_range}}
+          {{> components/products/price-range price_range=product.price_range}}
+        {{else}}
+          {{> components/products/price price=product.price}}
+        {{/if}}
+      </div>
+
+      <div class="product-description">
+        {{{product.description}}}
+      </div>
+
+      {{#if product.options}}
+        <div class="product-options">
+          {{> components/products/product-options product=product}}
+        </div>
+      {{/if}}
+
+      <div class="product-actions">
+        {{> components/products/add-to-cart product=product}}
+      </div>
+
+      {{#if product.availability}}
+        <div class="product-availability">
+          {{> components/products/availability product=product}}
+        </div>
+      {{/if}}
+    </div>
+  </div>
+
+  {{#if product.related_products}}
+    <div class="related-products">
+      <h2>Related Products</h2>
+      {{> components/products/grid products=product.related_products}}
+    </div>
+  {{/if}}
+</div>
+{{/partial}}
+
+{{> layout/base}}
+```
+
+### 自定义组件
+
+```handlebars
+<!-- templates/components/custom-product-card.html -->
+<div class="custom-product-card" data-product-id="{{id}}">
+  <div class="custom-product-card__image">
+    <a href="{{url}}">
+      <img src="{{getImage image 'product_card'}}" alt="{{name}}" />
+    </a>
+    {{#if sale_price}}
+      <span class="custom-product-card__badge custom-product-card__badge--sale">
+        Sale
+      </span>
+    {{/if}}
+  </div>
+
+  <div class="custom-product-card__content">
+    <h3 class="custom-product-card__title">
+      <a href="{{url}}">{{name}}</a>
+    </h3>
+
+    <div class="custom-product-card__price">
+      {{#if sale_price}}
+        <span class="custom-product-card__price--sale">{{money sale_price}}</span>
+        <span class="custom-product-card__price--original">{{money price}}</span>
+      {{else}}
+        <span class="custom-product-card__price--current">{{money price}}</span>
+      {{/if}}
+    </div>
+
+    <div class="custom-product-card__actions">
+      <button class="custom-product-card__add-to-cart" data-product-id="{{id}}">
+        Add to Cart
+      </button>
+    </div>
+  </div>
+</div>
+```
+
+### 自定义样式
+
+```scss
+// assets/scss/components/_custom-product-card.scss
+.custom-product-card {
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: box-shadow 0.3s ease;
+  background: #fff;
+
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  &__image {
+    position: relative;
+    aspect-ratio: 1;
+    overflow: hidden;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.3s ease;
+    }
+
+    &:hover img {
+      transform: scale(1.05);
+    }
+  }
+
+  &__badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+
+    &--sale {
+      background: #ff4444;
+      color: #fff;
+    }
+  }
+
+  &__content {
+    padding: 16px;
+  }
+
+  &__title {
+    margin: 0 0 8px;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.4;
+
+    a {
+      color: #333;
+      text-decoration: none;
+
+      &:hover {
+        color: #007cba;
+      }
+    }
+  }
+
+  &__price {
+    margin-bottom: 16px;
+
+    &--sale {
+      color: #ff4444;
+      font-weight: 600;
+      font-size: 18px;
+    }
+
+    &--original {
+      color: #999;
+      text-decoration: line-through;
+      margin-left: 8px;
+    }
+
+    &--current {
+      color: #333;
+      font-weight: 600;
+      font-size: 18px;
+    }
+  }
+
+  &__actions {
+    .custom-product-card__add-to-cart {
+      width: 100%;
+      padding: 12px;
+      background: #007cba;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+
+      &:hover {
+        background: #005a87;
+      }
+
+      &:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+    }
+  }
+}
+```
+
+### JavaScript功能扩展
+
+```javascript
+// assets/js/theme/global/custom-product-card.js
+import $ from 'jquery';
+import { api } from '@bigcommerce/stencil-utils';
+
+export default function() {
+  $('.custom-product-card__add-to-cart').on('click', function(e) {
+    e.preventDefault();
+    
+    const $button = $(this);
+    const productId = $button.data('product-id');
+    
+    if ($button.hasClass('is-loading')) {
+      return;
+    }
+
+    $button.addClass('is-loading').text('Adding...');
+
+    api.cart.addItem(productId, 1, (err, response) => {
+      $button.removeClass('is-loading').text('Add to Cart');
+      
+      if (err) {
+        console.error('Failed to add product to cart:', err);
+        // 显示错误消息
+        return;
+      }
+
+      // 更新购物车数量
+      $('.cart-count').text(response.cart_item_count);
+      
+      // 显示成功消息
+      $('.notification').addClass('notification--success')
+        .text('Product added to cart successfully')
+        .show();
+    });
+  });
+}
+```
+
+## B2B Buyer Portal开发规范
+
+### B2B特定组件
+
+```typescript
+// components/B2BProductCard/B2BProductCard.tsx
+import React from 'react';
+import { useB2BProduct } from '../../hooks/useB2BProduct';
+
+export const B2BProductCard: React.FC<B2BProductCardProps> = ({
+  product,
+  customerGroup,
+  showBulkPricing = true,
+  showContractPricing = true,
+}) => {
+  const { addToQuote, isAddingToQuote } = useB2BProduct();
+
+  const getCustomerPrice = () => {
+    if (customerGroup?.pricing_rules) {
+      return customerGroup.pricing_rules.find(rule => 
+        rule.product_id === product.id
+      )?.price || product.price;
+    }
+    return product.price;
+  };
+
+  const handleAddToQuote = async () => {
+    try {
+      await addToQuote(product.id, 1);
+    } catch (error) {
+      console.error('Failed to add product to quote:', error);
+    }
+  };
+
+  return (
+    <div className="b2b-product-card">
+      <div className="b2b-product-card__image">
+        <img src={product.images[0]?.url_standard} alt={product.name} />
+      </div>
+
+      <div className="b2b-product-card__content">
+        <h3 className="b2b-product-card__title">{product.name}</h3>
+        
+        <div className="b2b-product-card__sku">
+          SKU: {product.sku}
+        </div>
+
+        <div className="b2b-product-card__pricing">
+          <div className="b2b-product-card__price">
+            <span className="b2b-product-card__price--customer">
+              ${getCustomerPrice().toFixed(2)}
+            </span>
+            {customerGroup?.pricing_rules && (
+              <span className="b2b-product-card__price--original">
+                ${product.price.toFixed(2)}
+              </span>
+            )}
+          </div>
+
+          {showBulkPricing && product.bulk_pricing_rules?.length > 0 && (
+            <div className="b2b-product-card__bulk-pricing">
+              <h4>Bulk Pricing</h4>
+              <ul>
+                {product.bulk_pricing_rules.map((rule, index) => (
+                  <li key={index}>
+                    {rule.quantity_minimum}+ units: ${rule.price.toFixed(2)} each
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <div className="b2b-product-card__inventory">
+          <span className={`b2b-product-card__stock ${
+            product.inventory_level > 0 ? 'b2b-product-card__stock--in-stock' : 'b2b-product-card__stock--out-of-stock'
+          }`}>
+            {product.inventory_level > 0 
+              ? `${product.inventory_level} in stock`
+              : 'Out of stock'
+            }
+          </span>
+        </div>
+
+        <div className="b2b-product-card__actions">
+          <button
+            className="b2b-product-card__add-to-quote"
+            onClick={handleAddToQuote}
+            disabled={isAddingToQuote || product.inventory_level === 0}
+          >
+            {isAddingToQuote ? 'Adding...' : 'Add to Quote'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+```
+
+### B2B报价系统
+
+```typescript
+// services/b2b-quote.service.ts
+export class B2BQuoteService {
+  private apiService: BigCommerceApiService;
+
+  constructor() {
+    this.apiService = new BigCommerceApiService();
+  }
+
+  // 创建报价
+  async createQuote(customerId: number, items: QuoteItem[]): Promise<B2BQuote> {
+    const quoteData = {
+      customer_id: customerId,
+      items: items.map(item => ({
+        product_id: item.productId,
+        quantity: item.quantity,
+        price: item.price,
+        notes: item.notes,
+      })),
+      valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30天有效期
+    };
+
+    const response = await this.apiService.createQuote(quoteData);
+    return response;
+  }
+
+  // 获取客户报价列表
+  async getCustomerQuotes(customerId: number): Promise<B2BQuote[]> {
+    const response = await this.apiService.getCustomerQuotes(customerId);
+    return response;
+  }
+
+  // 将报价转换为订单
+  async convertQuoteToOrder(quoteId: number): Promise<BigCommerceOrder> {
+    const response = await this.apiService.convertQuoteToOrder(quoteId);
+    return response;
+  }
+
+  // 更新报价状态
+  async updateQuoteStatus(quoteId: number, status: QuoteStatus): Promise<B2BQuote> {
+    const response = await this.apiService.updateQuoteStatus(quoteId, status);
+    return response;
+  }
+}
+
+// 类型定义
+export interface B2BQuote {
+  id: number;
+  customer_id: number;
+  status: QuoteStatus;
+  items: QuoteItem[];
+  subtotal: number;
+  tax: number;
+  total: number;
+  valid_until: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QuoteItem {
+  product_id: number;
+  quantity: number;
+  price: number;
+  notes?: string;
+}
+
+export type QuoteStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'expired';
+```
+
+### 客户组定价规则
+
+```typescript
+// services/customer-group-pricing.service.ts
+export class CustomerGroupPricingService {
+  private apiService: BigCommerceApiService;
+
+  constructor() {
+    this.apiService = new BigCommerceApiService();
+  }
+
+  // 获取客户组定价规则
+  async getCustomerGroupPricing(customerGroupId: number): Promise<CustomerGroupPricing[]> {
+    const response = await this.apiService.getCustomerGroupPricing(customerGroupId);
+    return response;
+  }
+
+  // 应用客户组定价
+  applyCustomerGroupPricing(product: BigCommerceProduct, customerGroup: CustomerGroup): number {
+    if (!customerGroup?.pricing_rules) {
+      return product.price;
+    }
+
+    const pricingRule = customerGroup.pricing_rules.find(rule => 
+      rule.product_id === product.id
+    );
+
+    if (pricingRule) {
+      return pricingRule.price;
+    }
+
+    // 应用百分比折扣
+    if (customerGroup.discount_percentage) {
+      return product.price * (1 - customerGroup.discount_percentage / 100);
+    }
+
+    return product.price;
+  }
+
+  // 获取批量定价
+  getBulkPricing(product: BigCommerceProduct, quantity: number): number {
+    if (!product.bulk_pricing_rules?.length) {
+      return product.price;
+    }
+
+    const applicableRule = product.bulk_pricing_rules
+      .filter(rule => quantity >= rule.quantity_minimum)
+      .sort((a, b) => b.quantity_minimum - a.quantity_minimum)[0];
+
+    return applicableRule ? applicableRule.price : product.price;
+  }
+}
+
+export interface CustomerGroup {
+  id: number;
+  name: string;
+  discount_percentage?: number;
+  pricing_rules?: CustomerGroupPricing[];
+}
+
+export interface CustomerGroupPricing {
+  product_id: number;
+  price: number;
+  discount_percentage?: number;
+}
+```
+
+## BigDesign UI组件库规范
+
+### BigDesign使用规范
+
+- 如果是 React APP 使用BigCommerce官方BigDesign组件库
+- 遵循BigDesign设计系统和设计令牌
+- 优先使用BigDesign组件，避免自定义基础组件
+- 使用BigDesign的主题系统进行样式定制
+
+### BigDesign安装和配置
+
+```bash
+# 安装BigDesign
+pnpm add @bigcommerce/big-design
+pnpm add @bigcommerce/big-design-icons
+
+# 安装类型定义
+pnpm add -D @types/big-design
+```
+
+### BigDesign主题配置
+
+```typescript
+// theme/bigDesignTheme.ts
+import { createTheme } from '@bigcommerce/big-design';
+
+export const customTheme = createTheme({
+  colors: {
+    primary: '#0066CC', // BigCommerce品牌色
+    secondary: '#F5F5F5',
+    success: '#00A651',
+    danger: '#D32F2F',
+    warning: '#FF9800',
+    info: '#2196F3',
+  },
+  spacing: {
+    none: '0',
+    xxxSmall: '0.25rem',
+    xxSmall: '0.5rem',
+    xSmall: '0.75rem',
+    small: '1rem',
+    medium: '1.5rem',
+    large: '2rem',
+    xLarge: '3rem',
+    xxLarge: '4rem',
+  },
+  typography: {
+    fontFamily: {
+      base: '"Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    },
+  },
+});
+```
+
+### BigDesign产品卡片组件示例
+
+```typescript
+// components/ProductCard/ProductCard.tsx
+import React from 'react';
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  Flex,
+  Small,
+  Text,
+  Badge,
+} from '@bigcommerce/big-design';
+import { ShoppingCartIcon } from '@bigcommerce/big-design-icons';
+import { BigCommerceProduct } from '../../types/bigcommerce.types';
+
+interface ProductCardProps {
+  product: BigCommerceProduct;
+  onAddToCart: (productId: number) => void;
+  isInCart: boolean;
+}
+
+export const ProductCard: React.FC<ProductCardProps> = ({
+  product,
+  onAddToCart,
+  isInCart,
+}) => {
+  const handleAddToCart = () => {
+    onAddToCart(product.id);
+  };
+
+  const getMainImage = () => {
+    return product.images?.[0]?.url_standard || '/placeholder-image.jpg';
+  };
+
+  const getSaleBadge = () => {
+    if (product.sale_price && product.sale_price < product.price) {
+      return (
+        <Badge variant="danger">
+          Sale
+        </Badge>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <Flex alignItems="center" justifyContent="space-between">
+          <Text as="h3" marginBottom="none">
+            {product.name}
+          </Text>
+          {getSaleBadge()}
+        </Flex>
+      </CardHeader>
+      
+      <CardContent>
+        <Box marginBottom="medium">
+          <img 
+            src={getMainImage()} 
+            alt={product.name}
+            style={{ width: '100%', height: '200px', objectFit: 'cover' }}
+          />
+        </Box>
+        
+        <Text marginBottom="small">
+          {product.description}
+        </Text>
+        
+        <Flex alignItems="center" justifyContent="space-between" marginBottom="medium">
+          <Box>
+            {product.sale_price && product.sale_price < product.price ? (
+              <Flex alignItems="center" gap="small">
+                <Text as="h4" marginBottom="none" color="danger">
+                  ${product.sale_price.toFixed(2)}
+                </Text>
+                <Text as="small" color="secondary" style={{ textDecoration: 'line-through' }}>
+                  ${product.price.toFixed(2)}
+                </Text>
+              </Flex>
+            ) : (
+              <Text as="h4" marginBottom="none">
+                ${product.price.toFixed(2)}
+              </Text>
+            )}
+          </Box>
+          <Small color="secondary">
+            SKU: {product.sku}
+          </Small>
+        </Flex>
+        
+        <Button
+          variant={isInCart ? "secondary" : "primary"}
+          disabled={isInCart || product.inventory_level === 0}
+          onClick={handleAddToCart}
+          iconLeft={<ShoppingCartIcon />}
+          fullWidth
+        >
+          {isInCart ? 'Added to Cart' : 
+           product.inventory_level === 0 ? 'Out of Stock' : 'Add to Cart'}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+};
+```
+
+### BigDesign产品表单组件示例
+
+```typescript
+// components/ProductForm/ProductForm.tsx
+import React from 'react';
+import {
+  Box,
+  Button,
+  Form,
+  FormGroup,
+  Input,
+  Select,
+  Textarea,
+  Flex,
+  Alert,
+} from '@bigcommerce/big-design';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+const productSchema = z.object({
+  name: z.string().min(1, 'Product name is required'),
+  description: z.string().min(10, 'Description must be at least 10 characters'),
+  price: z.number().positive('Price must be positive'),
+  sku: z.string().min(1, 'SKU is required'),
+  weight: z.number().min(0, 'Weight must be non-negative'),
+  inventory_level: z.number().min(0, 'Inventory level must be non-negative'),
+});
+
+type ProductFormData = z.infer<typeof productSchema>;
+
+interface ProductFormProps {
+  onSubmit: (data: ProductFormData) => void;
+  initialData?: Partial<ProductFormData>;
+  isLoading?: boolean;
+}
+
+export const ProductForm: React.FC<ProductFormProps> = ({
+  onSubmit,
+  initialData,
+  isLoading = false,
+}) => {
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+    reset,
+  } = useForm<ProductFormData>({
+    resolver: zodResolver(productSchema),
+    defaultValues: initialData,
+  });
+
+  const onFormSubmit = async (data: ProductFormData) => {
+    try {
+      await onSubmit(data);
+      reset();
+    } catch (error) {
+      console.error('Form submission failed:', error);
+    }
+  };
+
+  return (
+    <Form onSubmit={handleSubmit(onFormSubmit)}>
+      <FormGroup>
+        <Controller
+          name="name"
+          control={control}
+          render={({ field }) => (
+            <Input
+              {...field}
+              label="Product Name"
+              placeholder="Enter product name"
+              error={errors.name?.message}
+              required
+            />
+          )}
+        />
+      </FormGroup>
+
+      <FormGroup>
+        <Controller
+          name="description"
+          control={control}
+          render={({ field }) => (
+            <Textarea
+              {...field}
+              label="Description"
+              placeholder="Enter product description"
+              error={errors.description?.message}
+              required
+            />
+          )}
+        />
+      </FormGroup>
+
+      <Flex gap="medium">
+        <FormGroup flex="1">
+          <Controller
+            name="price"
+            control={control}
+            render={({ field }) => (
+              <Input
+                {...field}
+                type="number"
+                step="0.01"
+                label="Price"
+                placeholder="0.00"
+                error={errors.price?.message}
+                required
+              />
+            )}
+          />
+        </FormGroup>
+
+        <FormGroup flex="1">
+          <Controller
+            name="sku"
+            control={control}
+            render={({ field }) => (
+              <Input
+                {...field}
+                label="SKU"
+                placeholder="Enter SKU"
+                error={errors.sku?.message}
+                required
+              />
+            )}
+          />
+        </FormGroup>
+      </Flex>
+
+      <Flex gap="medium">
+        <FormGroup flex="1">
+          <Controller
+            name="weight"
+            control={control}
+            render={({ field }) => (
+              <Input
+                {...field}
+                type="number"
+                step="0.01"
+                label="Weight (lbs)"
+                placeholder="0.00"
+                error={errors.weight?.message}
+              />
+            )}
+          />
+        </FormGroup>
+
+        <FormGroup flex="1">
+          <Controller
+            name="inventory_level"
+            control={control}
+            render={({ field }) => (
+              <Input
+                {...field}
+                type="number"
+                label="Inventory Level"
+                placeholder="0"
+                error={errors.inventory_level?.message}
+              />
+            )}
+          />
+        </FormGroup>
+      </Flex>
+
+      <Box marginTop="large">
+        <Button
+          type="submit"
+          isLoading={isLoading}
+          disabled={isLoading}
+        >
+          {isLoading ? 'Saving...' : 'Save Product'}
+        </Button>
+      </Box>
+    </Form>
+  );
+};
+```
+
+### BigDesign管理界面布局组件示例
+
+```typescript
+// components/Layout/AdminLayout.tsx
+import React from 'react';
+import {
+  Box,
+  Flex,
+  Header,
+  HeaderNav,
+  HeaderNavItem,
+  Panel,
+  SideNav,
+  SideNavItem,
+  Small,
+} from '@bigcommerce/big-design';
+import { 
+  HomeIcon, 
+  ProductsIcon, 
+  OrdersIcon, 
+  CustomersIcon,
+  SettingsIcon,
+  AnalyticsIcon,
+} from '@bigcommerce/big-design-icons';
+
+interface AdminLayoutProps {
+  children: React.ReactNode;
+  currentPage?: string;
+}
+
+export const AdminLayout: React.FC<AdminLayoutProps> = ({ 
+  children, 
+  currentPage = 'dashboard' 
+}) => {
+  const navItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: <HomeIcon /> },
+    { id: 'products', label: 'Products', icon: <ProductsIcon /> },
+    { id: 'orders', label: 'Orders', icon: <OrdersIcon /> },
+    { id: 'customers', label: 'Customers', icon: <CustomersIcon /> },
+    { id: 'analytics', label: 'Analytics', icon: <AnalyticsIcon /> },
+    { id: 'settings', label: 'Settings', icon: <SettingsIcon /> },
+  ];
+
+  return (
+    <Box backgroundColor="secondary" minHeight="100vh">
+      <Header>
+        <HeaderNav>
+          {navItems.map(item => (
+            <HeaderNavItem 
+              key={item.id}
+              isActive={currentPage === item.id}
+            >
+              {item.label}
+            </HeaderNavItem>
+          ))}
+        </HeaderNav>
+      </Header>
+
+      <Flex>
+        <SideNav>
+          {navItems.map(item => (
+            <SideNavItem 
+              key={item.id}
+              icon={item.icon}
+              isActive={currentPage === item.id}
+            >
+              {item.label}
+            </SideNavItem>
+          ))}
+        </SideNav>
+
+        <Panel>
+          <Box padding="large">
+            {children}
+          </Box>
+        </Panel>
+      </Flex>
+    </Box>
+  );
+};
+```
+
+### BigDesign产品管理表格组件示例
+
+```typescript
+// components/ProductTable/ProductTable.tsx
+import React from 'react';
+import {
+  Box,
+  Table,
+  TableHeader,
+  TableRow,
+  TableCell,
+  Button,
+  Badge,
+  Flex,
+  Text,
+  Pagination,
+  Small,
+} from '@bigcommerce/big-design';
+import { EditIcon, DeleteIcon, EyeIcon } from '@bigcommerce/big-design-icons';
+import { BigCommerceProduct } from '../../types/bigcommerce.types';
+
+interface ProductTableProps {
+  products: BigCommerceProduct[];
+  onEdit: (product: BigCommerceProduct) => void;
+  onDelete: (productId: number) => void;
+  onView: (productId: number) => void;
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}
+
+export const ProductTable: React.FC<ProductTableProps> = ({
+  products,
+  onEdit,
+  onDelete,
+  onView,
+  currentPage,
+  totalPages,
+  onPageChange,
+}) => {
+  const getMainImage = (product: BigCommerceProduct) => {
+    return product.images?.[0]?.url_thumbnail || '/placeholder-image.jpg';
+  };
+
+  const getStockStatus = (product: BigCommerceProduct) => {
+    if (product.inventory_level === 0) {
+      return <Badge variant="danger">Out of Stock</Badge>;
+    }
+    if (product.inventory_level <= product.inventory_warning_level) {
+      return <Badge variant="warning">Low Stock</Badge>;
+    }
+    return <Badge variant="success">In Stock</Badge>;
+  };
+
+  return (
+    <Box>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableCell>Product</TableCell>
+            <TableCell>SKU</TableCell>
+            <TableCell>Price</TableCell>
+            <TableCell>Stock</TableCell>
+            <TableCell>Status</TableCell>
+            <TableCell>Actions</TableCell>
+          </TableRow>
+        </TableHeader>
+        
+        <tbody>
+          {products.map((product) => (
+            <TableRow key={product.id}>
+              <TableCell>
+                <Flex alignItems="center" gap="small">
+                  <img
+                    src={getMainImage(product)}
+                    alt={product.name}
+                    style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                  />
+                  <Box>
+                    <Text marginBottom="none">{product.name}</Text>
+                    <Small color="secondary">
+                      ID: {product.id}
+                    </Small>
+                  </Box>
+                </Flex>
+              </TableCell>
+              <TableCell>
+                <Text>{product.sku}</Text>
+              </TableCell>
+              <TableCell>
+                <Box>
+                  {product.sale_price && product.sale_price < product.price ? (
+                    <Flex direction="column" gap="xxSmall">
+                      <Text color="danger">${product.sale_price.toFixed(2)}</Text>
+                      <Small color="secondary" style={{ textDecoration: 'line-through' }}>
+                        ${product.price.toFixed(2)}
+                      </Small>
+                    </Flex>
+                  ) : (
+                    <Text>${product.price.toFixed(2)}</Text>
+                  )}
+                </Box>
+              </TableCell>
+              <TableCell>
+                <Text>{product.inventory_level}</Text>
+              </TableCell>
+              <TableCell>
+                {getStockStatus(product)}
+              </TableCell>
+              <TableCell>
+                <Flex gap="small">
+                  <Button
+                    variant="secondary"
+                    size="small"
+                    iconOnly={<EyeIcon />}
+                    onClick={() => onView(product.id)}
+                  />
+                  <Button
+                    variant="secondary"
+                    size="small"
+                    iconOnly={<EditIcon />}
+                    onClick={() => onEdit(product)}
+                  />
+                  <Button
+                    variant="danger"
+                    size="small"
+                    iconOnly={<DeleteIcon />}
+                    onClick={() => onDelete(product.id)}
+                  />
+                </Flex>
+              </TableCell>
+            </TableRow>
+          ))}
+        </tbody>
+      </Table>
+
+      {totalPages > 1 && (
+        <Box marginTop="large">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={onPageChange}
+          />
+        </Box>
+      )}
+    </Box>
+  );
+};
+```
+
+### BigDesign主题提供者配置
+
+```typescript
+// app/providers.tsx
+import React from 'react';
+import { BigDesignProvider } from '@bigcommerce/big-design';
+import { customTheme } from '../theme/bigDesignTheme';
+
+interface ProvidersProps {
+  children: React.ReactNode;
+}
+
+export const Providers: React.FC<ProvidersProps> = ({ children }) => {
+  return (
+    <BigDesignProvider theme={customTheme}>
+      {children}
+    </BigDesignProvider>
+  );
+};
+```
+
+### BigDesign与BigCommerce API集成示例
+
+```typescript
+// hooks/useBigCommerceWithBigDesign.ts
+import { useState, useEffect } from 'react';
+import { BigCommerceApiService } from '../services/bigcommerce-api.service';
+import { BigCommerceProduct } from '../types/bigcommerce.types';
+
+export const useBigCommerceWithBigDesign = () => {
+  const [products, setProducts] = useState<BigCommerceProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const apiService = new BigCommerceApiService();
+
+  const fetchProducts = async (page: number = 1) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await apiService.getProducts({
+        page,
+        limit: 20,
+      });
+      
+      setProducts(response.data);
+      setTotalPages(Math.ceil(response.meta.pagination.total / 20));
+      setCurrentPage(page);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch products');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createProduct = async (productData: any) => {
+    try {
+      const newProduct = await apiService.createProduct(productData);
+      setProducts(prev => [newProduct, ...prev]);
+      return newProduct;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create product');
+      throw err;
+    }
+  };
+
+  const updateProduct = async (productId: number, productData: any) => {
+    try {
+      const updatedProduct = await apiService.updateProduct(productId, productData);
+      setProducts(prev => 
+        prev.map(product => 
+          product.id === productId ? updatedProduct : product
+        )
+      );
+      return updatedProduct;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update product');
+      throw err;
+    }
+  };
+
+  const deleteProduct = async (productId: number) => {
+    try {
+      await apiService.deleteProduct(productId);
+      setProducts(prev => prev.filter(product => product.id !== productId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete product');
+      throw err;
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  return {
+    products,
+    loading,
+    error,
+    currentPage,
+    totalPages,
+    fetchProducts,
+    createProduct,
+    updateProduct,
+    deleteProduct,
+  };
+};
+```

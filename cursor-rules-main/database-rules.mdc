@@ -1,0 +1,612 @@
+---
+description: Database development rules
+globs:
+alwaysApply: false
+---
+# Cursor Rules - 数据库技术栈规范
+
+## PostgreSQL开发规范
+
+### 数据库设计原则
+
+- 使用有意义的表名和字段名
+- 遵循第三范式，避免数据冗余
+- 合理使用索引优化查询性能
+- 实现数据完整性和约束
+
+### 表设计规范
+
+```sql
+-- 用户表设计示例
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role user_role DEFAULT 'customer',
+    avatar_url TEXT,
+    is_active BOOLEAN DEFAULT true,
+    email_verified BOOLEAN DEFAULT false,
+    last_login_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 创建用户角色枚举
+CREATE TYPE user_role AS ENUM ('admin', 'manager', 'customer');
+
+-- 创建索引
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_role ON users(role);
+CREATE INDEX idx_users_created_at ON users(created_at);
+
+-- 创建更新时间触发器
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_users_updated_at 
+    BEFORE UPDATE ON users 
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
+```
+
+### 产品表设计示例
+
+```sql
+-- 产品表
+CREATE TABLE products (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
+    category_id UUID NOT NULL REFERENCES categories(id),
+    sku VARCHAR(100) UNIQUE,
+    images TEXT[],
+    is_active BOOLEAN DEFAULT true,
+    stock_quantity INTEGER DEFAULT 0 CHECK (stock_quantity >= 0),
+    weight_kg DECIMAL(8,3),
+    dimensions_cm JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 产品变体表
+CREATE TABLE product_variants (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    sku VARCHAR(100) UNIQUE,
+    price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
+    stock_quantity INTEGER DEFAULT 0 CHECK (stock_quantity >= 0),
+    attributes JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 创建复合索引
+CREATE INDEX idx_products_category_active ON products(category_id, is_active);
+CREATE INDEX idx_products_price ON products(price);
+CREATE INDEX idx_product_variants_product_id ON product_variants(product_id);
+```
+
+### 订单表设计示例
+
+```sql
+-- 订单表
+CREATE TABLE orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id),
+    order_number VARCHAR(50) UNIQUE NOT NULL,
+    status order_status DEFAULT 'pending',
+    total_amount DECIMAL(10,2) NOT NULL CHECK (total_amount >= 0),
+    subtotal DECIMAL(10,2) NOT NULL CHECK (subtotal >= 0),
+    tax_amount DECIMAL(10,2) DEFAULT 0 CHECK (tax_amount >= 0),
+    shipping_amount DECIMAL(10,2) DEFAULT 0 CHECK (shipping_amount >= 0),
+    discount_amount DECIMAL(10,2) DEFAULT 0 CHECK (discount_amount >= 0),
+    shipping_address_id UUID REFERENCES addresses(id),
+    billing_address_id UUID REFERENCES addresses(id),
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 订单状态枚举
+CREATE TYPE order_status AS ENUM (
+    'pending', 'confirmed', 'processing', 'shipped', 
+    'delivered', 'cancelled', 'refunded'
+);
+
+-- 订单项表
+CREATE TABLE order_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    product_id UUID NOT NULL REFERENCES products(id),
+    variant_id UUID REFERENCES product_variants(id),
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    unit_price DECIMAL(10,2) NOT NULL CHECK (unit_price >= 0),
+    total_price DECIMAL(10,2) NOT NULL CHECK (total_price >= 0),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 创建索引
+CREATE INDEX idx_orders_user_id ON orders(user_id);
+CREATE INDEX idx_orders_status ON orders(status);
+CREATE INDEX idx_orders_created_at ON orders(created_at);
+CREATE INDEX idx_order_items_order_id ON order_items(order_id);
+CREATE INDEX idx_order_items_product_id ON order_items(product_id);
+```
+
+### 查询优化规范
+
+#### 避免N+1查询问题
+
+```sql
+-- 不好的查询方式（N+1问题）
+SELECT * FROM products WHERE category_id = 'some-category-id';
+-- 然后对每个产品单独查询变体
+SELECT * FROM product_variants WHERE product_id = 'product-id';
+
+-- 好的查询方式（使用JOIN）
+SELECT 
+    p.*,
+    json_agg(
+        json_build_object(
+            'id', pv.id,
+            'name', pv.name,
+            'price', pv.price,
+            'stock_quantity', pv.stock_quantity
+        )
+    ) as variants
+FROM products p
+LEFT JOIN product_variants pv ON p.id = pv.product_id
+WHERE p.category_id = 'some-category-id'
+GROUP BY p.id;
+```
+
+#### 分页查询优化
+
+```sql
+-- 使用偏移分页（团队标准做法）
+SELECT * FROM products 
+ORDER BY created_at DESC 
+LIMIT 20 OFFSET 40;
+
+-- 带条件的分页查询
+SELECT * FROM products 
+WHERE category_id = 'electronics' 
+  AND is_active = true
+ORDER BY created_at DESC 
+LIMIT 20 OFFSET 40;
+
+-- 带搜索的分页查询
+SELECT * FROM products 
+WHERE name ILIKE '%search_term%' 
+  OR description ILIKE '%search_term%'
+ORDER BY created_at DESC 
+LIMIT 20 OFFSET 40;
+```
+
+#### 全文搜索优化
+
+```sql
+-- 创建全文搜索索引
+ALTER TABLE products ADD COLUMN search_vector tsvector;
+
+UPDATE products SET search_vector = 
+    setweight(to_tsvector('english', name), 'A') ||
+    setweight(to_tsvector('english', description), 'B');
+
+CREATE INDEX products_search_idx ON products USING GIN(search_vector);
+
+-- 全文搜索查询
+SELECT * FROM products 
+WHERE search_vector @@ plainto_tsquery('english', 'search term')
+ORDER BY ts_rank(search_vector, plainto_tsquery('english', 'search term')) DESC;
+```
+
+### 事务管理规范
+
+```sql
+-- 使用事务确保数据一致性
+BEGIN;
+
+-- 检查库存
+SELECT stock_quantity FROM products WHERE id = 'product-id' FOR UPDATE;
+
+-- 更新库存
+UPDATE products 
+SET stock_quantity = stock_quantity - 1 
+WHERE id = 'product-id' AND stock_quantity >= 1;
+
+-- 创建订单
+INSERT INTO orders (user_id, order_number, total_amount) 
+VALUES ('user-id', 'ORD-001', 99.99);
+
+-- 创建订单项
+INSERT INTO order_items (order_id, product_id, quantity, unit_price, total_price)
+VALUES ('order-id', 'product-id', 1, 99.99, 99.99);
+
+COMMIT;
+```
+
+### 数据迁移规范
+
+```sql
+-- 创建迁移文件
+-- migrations/001_create_users_table.sql
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 回滚迁移
+-- migrations/001_create_users_table_rollback.sql
+DROP TABLE IF EXISTS users;
+```
+
+## Redis开发规范
+
+### Redis数据结构使用规范
+
+#### 字符串（String）
+
+```typescript
+// 用户会话存储
+await redis.setex(`session:${userId}`, 3600, JSON.stringify(sessionData));
+
+// 缓存产品信息
+await redis.setex(`product:${productId}`, 1800, JSON.stringify(product));
+
+// 计数器
+await redis.incr(`product:${productId}:views`);
+await redis.expire(`product:${productId}:views`, 86400); // 24小时过期
+```
+
+#### 哈希（Hash）
+
+```typescript
+// 用户购物车
+await redis.hset(`cart:${userId}`, {
+  'product:1': '2',
+  'product:2': '1',
+  'product:3': '3'
+});
+await redis.expire(`cart:${userId}`, 604800); // 7天过期
+
+// 获取购物车
+const cartItems = await redis.hgetall(`cart:${userId}`);
+
+// 更新购物车项
+await redis.hset(`cart:${userId}`, 'product:1', '5');
+
+// 删除购物车项
+await redis.hdel(`cart:${userId}`, 'product:1');
+```
+
+#### 列表（List）
+
+```typescript
+// 最近查看的产品
+await redis.lpush(`recent_products:${userId}`, productId);
+await redis.ltrim(`recent_products:${userId}`, 0, 9); // 只保留最近10个
+await redis.expire(`recent_products:${userId}`, 2592000); // 30天过期
+
+// 获取最近查看的产品
+const recentProducts = await redis.lrange(`recent_products:${userId}`, 0, -1);
+```
+
+#### 集合（Set）
+
+```typescript
+// 用户收藏的产品
+await redis.sadd(`wishlist:${userId}`, productId);
+await redis.expire(`wishlist:${userId}`, 31536000); // 1年过期
+
+// 检查是否收藏
+const isWishlisted = await redis.sismember(`wishlist:${userId}`, productId);
+
+// 获取收藏列表
+const wishlist = await redis.smembers(`wishlist:${userId}`);
+
+// 移除收藏
+await redis.srem(`wishlist:${userId}`, productId);
+```
+
+#### 有序集合（Sorted Set）
+
+```typescript
+// 产品热度排行
+await redis.zadd('product_ranking', {
+  'product:1': 100,
+  'product:2': 85,
+  'product:3': 120
+});
+
+// 增加产品热度
+await redis.zincrby('product_ranking', 1, 'product:1');
+
+// 获取热门产品
+const topProducts = await redis.zrevrange('product_ranking', 0, 9, 'WITHSCORES');
+
+// 获取产品排名
+const rank = await redis.zrevrank('product_ranking', 'product:1');
+```
+
+### 缓存策略规范
+
+#### 缓存模式
+
+```typescript
+// Cache-Aside模式
+class ProductService {
+  async getProduct(id: string): Promise<Product> {
+    // 先尝试从缓存获取
+    const cached = await redis.get(`product:${id}`);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
+    // 缓存未命中，从数据库获取
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: { category: true, variants: true }
+    });
+
+    if (product) {
+      // 写入缓存
+      await redis.setex(`product:${id}`, 1800, JSON.stringify(product));
+    }
+
+    return product;
+  }
+
+  async updateProduct(id: string, data: UpdateProductDto): Promise<Product> {
+    // 更新数据库
+    const product = await this.prisma.product.update({
+      where: { id },
+      data,
+      include: { category: true, variants: true }
+    });
+
+    // 更新缓存
+    await redis.setex(`product:${id}`, 1800, JSON.stringify(product));
+
+    return product;
+  }
+
+  async deleteProduct(id: string): Promise<void> {
+    // 删除数据库记录
+    await this.prisma.product.delete({ where: { id } });
+
+    // 删除缓存
+    await redis.del(`product:${id}`);
+  }
+}
+```
+
+#### 缓存预热
+
+```typescript
+// 系统启动时预热热门产品缓存
+async function warmupProductCache() {
+  const hotProducts = await prisma.product.findMany({
+    where: { isActive: true },
+    orderBy: { viewCount: 'desc' },
+    take: 100,
+    include: { category: true, variants: true }
+  });
+
+  const pipeline = redis.pipeline();
+  
+  hotProducts.forEach(product => {
+    pipeline.setex(`product:${product.id}`, 1800, JSON.stringify(product));
+  });
+
+  await pipeline.exec();
+}
+```
+
+#### 缓存失效策略
+
+```typescript
+// 批量缓存失效
+async function invalidateProductCache(productId: string) {
+  const patterns = [
+    `product:${productId}`,
+    `product:${productId}:*`,
+    'product_ranking',
+    'category_products:*'
+  ];
+
+  const pipeline = redis.pipeline();
+  
+  patterns.forEach(pattern => {
+    pipeline.del(pattern);
+  });
+
+  await pipeline.exec();
+}
+
+// 延迟双删策略
+async function updateProductWithCache(id: string, data: UpdateProductDto) {
+  // 1. 删除缓存
+  await redis.del(`product:${id}`);
+
+  // 2. 更新数据库
+  const product = await prisma.product.update({
+    where: { id },
+    data,
+    include: { category: true, variants: true }
+  });
+
+  // 3. 延迟删除缓存（防止缓存不一致）
+  setTimeout(async () => {
+    await redis.del(`product:${id}`);
+  }, 1000);
+
+  return product;
+}
+```
+
+### Redis集群和持久化
+
+#### 主从复制配置
+
+```bash
+# 主节点配置 (redis.conf)
+bind 0.0.0.0
+port 6379
+requirepass your_password
+appendonly yes
+appendfsync everysec
+
+# 从节点配置 (redis-slave.conf)
+bind 0.0.0.0
+port 6380
+requirepass your_password
+slaveof 127.0.0.1 6379
+masterauth your_password
+```
+
+#### Redis集群配置
+
+```bash
+# 创建集群
+redis-cli --cluster create \
+  127.0.0.1:7000 127.0.0.1:7001 127.0.0.1:7002 \
+  127.0.0.1:7003 127.0.0.1:7004 127.0.0.1:7005 \
+  --cluster-replicas 1
+
+# 集群节点配置
+port 7000
+cluster-enabled yes
+cluster-config-file nodes-7000.conf
+cluster-node-timeout 5000
+appendonly yes
+```
+
+### 监控和性能优化
+
+#### 性能监控
+
+```typescript
+// Redis性能监控
+class RedisMonitor {
+  async getStats() {
+    const info = await redis.info();
+    const memory = await redis.memory('usage');
+    const slowlog = await redis.slowlog('get', 10);
+
+    return {
+      info: this.parseInfo(info),
+      memory,
+      slowlog
+    };
+  }
+
+  private parseInfo(info: string) {
+    const lines = info.split('\r\n');
+    const stats: Record<string, string> = {};
+
+    lines.forEach(line => {
+      const [key, value] = line.split(':');
+      if (key && value) {
+        stats[key] = value;
+      }
+    });
+
+    return stats;
+  }
+}
+```
+
+#### 连接池配置
+
+```typescript
+// Redis连接池配置
+import Redis from 'ioredis';
+
+const redis = new Redis({
+  host: process.env.REDIS_HOST || 'localhost',
+  port: parseInt(process.env.REDIS_PORT) || 6379,
+  password: process.env.REDIS_PASSWORD,
+  db: parseInt(process.env.REDIS_DB) || 0,
+  retryDelayOnFailover: 100,
+  maxRetriesPerRequest: 3,
+  lazyConnect: true,
+  keepAlive: 30000,
+  connectTimeout: 10000,
+  commandTimeout: 5000,
+  // 连接池配置
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false,
+  maxLoadingTimeout: 10000,
+});
+```
+
+### 安全规范
+
+#### 访问控制
+
+```bash
+# Redis安全配置
+# redis.conf
+requirepass your_strong_password
+rename-command FLUSHDB ""
+rename-command FLUSHALL ""
+rename-command CONFIG ""
+rename-command SHUTDOWN ""
+```
+
+#### 数据加密
+
+```typescript
+// 敏感数据加密存储
+import crypto from 'crypto';
+
+class SecureRedis {
+  private algorithm = 'aes-256-cbc';
+  private secretKey = process.env.REDIS_ENCRYPTION_KEY;
+
+  private encrypt(text: string): string {
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipher(this.algorithm, this.secretKey);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return iv.toString('hex') + ':' + encrypted;
+  }
+
+  private decrypt(text: string): string {
+    const [ivHex, encrypted] = text.split(':');
+    const iv = Buffer.from(ivHex, 'hex');
+    const decipher = crypto.createDecipher(this.algorithm, this.secretKey);
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  }
+
+  async setSecure(key: string, value: any, ttl?: number): Promise<void> {
+    const encrypted = this.encrypt(JSON.stringify(value));
+    if (ttl) {
+      await redis.setex(key, ttl, encrypted);
+    } else {
+      await redis.set(key, encrypted);
+    }
+  }
+
+  async getSecure(key: string): Promise<any> {
+    const encrypted = await redis.get(key);
+    if (!encrypted) return null;
+    
+    const decrypted = this.decrypt(encrypted);
+    return JSON.parse(decrypted);
+  }
+}
+```

@@ -1,0 +1,1025 @@
+---
+description: Frontend development rules
+globs:
+alwaysApply: false
+---
+# Cursor Rules - 前端技术栈规范
+
+## React开发规范
+
+### 组件设计原则
+
+- 使用函数组件和Hooks，避免类组件
+- 组件必须使用TypeScript接口定义props
+- 组件文件结构：组件名.tsx + 组件名.module.css + 组件名.test.tsx
+- 组件必须导出默认导出和命名导出
+
+### 组件示例
+
+```typescript
+// components/ProductCard/ProductCard.tsx
+interface ProductCardProps {
+  product: Product;
+  onAddToCart: (productId: string) => void;
+  isInCart: boolean;
+}
+
+export const ProductCard: React.FC<ProductCardProps> = ({
+  product,
+  onAddToCart,
+  isInCart,
+}) => {
+  const handleAddToCart = () => {
+    onAddToCart(product.id);
+  };
+
+  return (
+    <div className={styles.card}>
+      <img src={product.image} alt={product.name} />
+      <h3>{product.name}</h3>
+      <p>${product.price}</p>
+      <button 
+        onClick={handleAddToCart}
+        disabled={isInCart}
+      >
+        {isInCart ? 'Added to Cart' : 'Add to Cart'}
+      </button>
+    </div>
+  );
+};
+
+export default ProductCard;
+```
+
+### Hooks使用规范
+
+- 自定义Hook必须以use开头
+- 使用useCallback优化函数引用
+- 使用useMemo优化计算密集型操作
+- 使用useEffect处理副作用，注意依赖数组
+
+### 自定义Hook示例
+
+```typescript
+// hooks/useLocalStorage.ts
+export function useLocalStorage<T>(
+  key: string,
+  initialValue: T
+): [T, (value: T) => void] {
+  const [storedValue, setStoredValue] = useState<T>(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      console.error(`Error reading localStorage key "${key}":`, error);
+      return initialValue;
+    }
+  });
+
+  const setValue = useCallback((value: T) => {
+    try {
+      setStoredValue(value);
+      window.localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+      console.error(`Error setting localStorage key "${key}":`, error);
+    }
+  }, [key]);
+
+  return [storedValue, setValue];
+}
+```
+
+## Next.js开发规范
+
+### 页面结构
+
+- 使用App Router（Next.js 13+）
+- 页面组件必须是默认导出
+- 使用generateMetadata生成动态元数据
+- 实现SSR/SSG优化SEO
+
+### 页面组件示例
+
+```typescript
+// app/products/[id]/page.tsx
+interface ProductPageProps {
+  params: { id: string };
+}
+
+export async function generateMetadata({ params }: ProductPageProps) {
+  const product = await getProduct(params.id);
+  
+  return {
+    title: product.name,
+    description: product.description,
+    openGraph: {
+      title: product.name,
+      description: product.description,
+      images: [product.image],
+    },
+  };
+}
+
+export default async function ProductPage({ params }: ProductPageProps) {
+  const product = await getProduct(params.id);
+  
+  return (
+    <div>
+      <h1>{product.name}</h1>
+      <p>{product.description}</p>
+      <ProductCard product={product} />
+    </div>
+  );
+}
+```
+
+### API路由规范
+
+```typescript
+// app/api/products/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const category = searchParams.get('category');
+    
+    const products = await getProducts({ category });
+    
+    return NextResponse.json({
+      success: true,
+      data: products,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch products' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const product = await createProduct(body);
+    
+    return NextResponse.json({
+      success: true,
+      data: product,
+    }, { status: 201 });
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: 'Failed to create product' },
+      { status: 400 }
+    );
+  }
+}
+```
+
+## TypeScript规范
+
+### 类型定义
+
+- 为所有props定义接口
+- 使用泛型提高代码复用性
+- 避免使用any类型
+- 使用联合类型和交叉类型
+
+### 类型定义示例
+
+```typescript
+// types/product.ts
+export interface Product {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  category: ProductCategory;
+  images: string[];
+  variants?: ProductVariant[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type ProductCategory = 
+  | 'electronics'
+  | 'clothing'
+  | 'books'
+  | 'home'
+  | 'sports';
+
+export interface ProductVariant {
+  id: string;
+  name: string;
+  price: number;
+  stock: number;
+}
+
+// 泛型示例
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  errors?: string[];
+  meta?: {
+    page?: number;
+    limit?: number;
+    total?: number;
+  };
+}
+```
+
+### 类型守卫示例
+
+```typescript
+// utils/typeGuards.ts
+export function isProduct(obj: any): obj is Product {
+  return (
+    typeof obj === 'object' &&
+    typeof obj.id === 'string' &&
+    typeof obj.name === 'string' &&
+    typeof obj.price === 'number'
+  );
+}
+
+export function isProductArray(arr: any): arr is Product[] {
+  return Array.isArray(arr) && arr.every(isProduct);
+}
+```
+
+### 避免UNKNOWN返回类型
+
+- 避免使用`unknown`作为函数返回类型，应该明确指定具体类型
+- 使用类型守卫和类型断言确保类型安全
+- 对于可能失败的操作，使用联合类型或可选类型
+
+#### 错误示例
+
+```typescript
+// ❌ 避免使用unknown作为返回类型
+function fetchProduct(id: string): unknown {
+  // 实现逻辑
+}
+
+// ❌ 避免使用any作为返回类型
+function parseData(data: string): any {
+  return JSON.parse(data);
+}
+```
+
+#### 正确示例
+
+```typescript
+// ✅ 明确指定返回类型
+function fetchProduct(id: string): Promise<Product | null> {
+  // 实现逻辑
+}
+
+// ✅ 使用联合类型处理可能失败的情况
+function parseData(data: string): Product | null {
+  try {
+    const parsed = JSON.parse(data);
+    return isProduct(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// ✅ 使用类型守卫确保类型安全
+function validateProduct(data: unknown): Product | null {
+  if (isProduct(data)) {
+    return data;
+  }
+  return null;
+}
+
+// ✅ 使用泛型提高类型安全性
+function safeParse<T>(data: string, validator: (obj: any) => obj is T): T | null {
+  try {
+    const parsed = JSON.parse(data);
+    return validator(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// 使用示例
+const product = safeParse(productData, isProduct);
+```
+
+## 状态管理规范
+
+### Zustand使用示例
+
+```typescript
+// stores/cartStore.ts
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+interface CartItem {
+  productId: string;
+  quantity: number;
+  price: number;
+}
+
+interface CartStore {
+  items: CartItem[];
+  addItem: (productId: string, price: number) => void;
+  removeItem: (productId: string) => void;
+  updateQuantity: (productId: string, quantity: number) => void;
+  clearCart: () => void;
+  getTotal: () => number;
+}
+
+export const useCartStore = create<CartStore>()(
+  persist(
+    (set, get) => ({
+      items: [],
+      
+      addItem: (productId: string, price: number) => {
+        set((state) => {
+          const existingItem = state.items.find(
+            item => item.productId === productId
+          );
+          
+          if (existingItem) {
+            return {
+              items: state.items.map(item =>
+                item.productId === productId
+                  ? { ...item, quantity: item.quantity + 1 }
+                  : item
+              ),
+            };
+          }
+          
+          return {
+            items: [...state.items, { productId, quantity: 1, price }],
+          };
+        });
+      },
+      
+      removeItem: (productId: string) => {
+        set((state) => ({
+          items: state.items.filter(item => item.productId !== productId),
+        }));
+      },
+      
+      updateQuantity: (productId: string, quantity: number) => {
+        set((state) => ({
+          items: state.items.map(item =>
+            item.productId === productId
+              ? { ...item, quantity: Math.max(0, quantity) }
+              : item
+          ),
+        }));
+      },
+      
+      clearCart: () => set({ items: [] }),
+      
+      getTotal: () => {
+        const { items } = get();
+        return items.reduce((total, item) => total + (item.price * item.quantity), 0);
+      },
+    }),
+    {
+      name: 'cart-storage',
+    }
+  )
+);
+```
+
+## 表单处理规范
+
+### React Hook Form使用示例
+
+```typescript
+// components/ProductForm/ProductForm.tsx
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+const productSchema = z.object({
+  name: z.string().min(1, 'Product name is required'),
+  description: z.string().min(10, 'Description must be at least 10 characters'),
+  price: z.number().positive('Price must be positive'),
+  category: z.enum(['electronics', 'clothing', 'books', 'home', 'sports']),
+  images: z.array(z.string().url()).min(1, 'At least one image is required'),
+});
+
+type ProductFormData = z.infer<typeof productSchema>;
+
+interface ProductFormProps {
+  onSubmit: (data: ProductFormData) => void;
+  initialData?: Partial<ProductFormData>;
+}
+
+export const ProductForm: React.FC<ProductFormProps> = ({
+  onSubmit,
+  initialData,
+}) => {
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    reset,
+  } = useForm<ProductFormData>({
+    resolver: zodResolver(productSchema),
+    defaultValues: initialData,
+  });
+
+  const onFormSubmit = async (data: ProductFormData) => {
+    try {
+      await onSubmit(data);
+      reset();
+    } catch (error) {
+      console.error('Form submission failed:', error);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit(onFormSubmit)} className={styles.form}>
+      <div className={styles.field}>
+        <label htmlFor="name">Product Name</label>
+        <Controller
+          name="name"
+          control={control}
+          render={({ field }) => (
+            <input
+              {...field}
+              id="name"
+              type="text"
+              className={errors.name ? styles.error : ''}
+            />
+          )}
+        />
+        {errors.name && (
+          <span className={styles.errorMessage}>{errors.name.message}</span>
+        )}
+      </div>
+
+      <div className={styles.field}>
+        <label htmlFor="description">Description</label>
+        <Controller
+          name="description"
+          control={control}
+          render={({ field }) => (
+            <textarea
+              {...field}
+              id="description"
+              rows={4}
+              className={errors.description ? styles.error : ''}
+            />
+          )}
+        />
+        {errors.description && (
+          <span className={styles.errorMessage}>{errors.description.message}</span>
+        )}
+      </div>
+
+      <div className={styles.field}>
+        <label htmlFor="price">Price</label>
+        <Controller
+          name="price"
+          control={control}
+          render={({ field }) => (
+            <input
+              {...field}
+              id="price"
+              type="number"
+              step="0.01"
+              className={errors.price ? styles.error : ''}
+            />
+          )}
+        />
+        {errors.price && (
+          <span className={styles.errorMessage}>{errors.price.message}</span>
+        )}
+      </div>
+
+      <button type="submit" disabled={isSubmitting}>
+        {isSubmitting ? 'Saving...' : 'Save Product'}
+      </button>
+    </form>
+  );
+};
+```
+
+## 路由管理规范
+
+### React Router使用示例
+
+```typescript
+// routes/index.tsx
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { Layout } from '../components/Layout';
+import { HomePage } from '../pages/HomePage';
+import { ProductsPage } from '../pages/ProductsPage';
+import { ProductDetailPage } from '../pages/ProductDetailPage';
+import { CartPage } from '../pages/CartPage';
+import { CheckoutPage } from '../pages/CheckoutPage';
+import { ProtectedRoute } from '../components/ProtectedRoute';
+
+const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <Layout />,
+    children: [
+      {
+        index: true,
+        element: <HomePage />,
+      },
+      {
+        path: 'products',
+        element: <ProductsPage />,
+      },
+      {
+        path: 'products/:id',
+        element: <ProductDetailPage />,
+      },
+      {
+        path: 'cart',
+        element: <CartPage />,
+      },
+      {
+        path: 'checkout',
+        element: (
+          <ProtectedRoute>
+            <CheckoutPage />
+          </ProtectedRoute>
+        ),
+      },
+    ],
+  },
+]);
+
+export const AppRouter: React.FC = () => {
+  return <RouterProvider router={router} />;
+};
+```
+
+## Vite构建配置
+
+```typescript
+// vite.config.ts
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      '@components': path.resolve(__dirname, './src/components'),
+      '@pages': path.resolve(__dirname, './src/pages'),
+      '@hooks': path.resolve(__dirname, './src/hooks'),
+      '@utils': path.resolve(__dirname, './src/utils'),
+      '@types': path.resolve(__dirname, './src/types'),
+      '@stores': path.resolve(__dirname, './src/stores'),
+    },
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          router: ['react-router-dom'],
+          form: ['react-hook-form'],
+          state: ['zustand'],
+        },
+      },
+    },
+  },
+  server: {
+    port: 3000,
+    open: true,
+  },
+});
+```
+
+## UI开发规范
+
+### Figma 转设计稿规范
+
+#### 设计稿分析流程
+
+1. **设计系统分析**
+   - 识别设计系统中的颜色、字体、间距等tokens
+   - 提取可复用的组件和样式模式
+   - 分析响应式设计规则和断点
+   - 达到像素级的还原设计稿
+
+2. **组件拆分原则**
+   - 按功能和复用性拆分UI组件
+   - 识别原子组件（Button、Input）和复合组件（Card、Form）
+   - 确定组件的变体（variants）和状态（states）
+
+#### Figma到代码转换流程
+
+```typescript
+// 1. 从Figma设计提取设计tokens，如果需要，如果是应用到其它系统，请自行替换到相应的模块
+// styles/tokens.ts
+export const designTokens = {
+  colors: {
+    primary: {
+      50: '#f0f9ff',
+      100: '#e0f2fe',
+      500: '#0ea5e9',
+      600: '#0284c7',
+      900: '#0c4a6e',
+    },
+    gray: {
+      50: '#f9fafb',
+      100: '#f3f4f6',
+      500: '#6b7280',
+      900: '#111827',
+    },
+  },
+  spacing: {
+    xs: '0.25rem',   // 4px
+    sm: '0.5rem',    // 8px
+    md: '1rem',      // 16px
+    lg: '1.5rem',    // 24px
+    xl: '2rem',      // 32px
+    '2xl': '3rem',   // 48px
+  },
+  typography: {
+    fontSize: {
+      xs: '0.75rem',   // 12px
+      sm: '0.875rem',  // 14px
+      base: '1rem',    // 16px
+      lg: '1.125rem',  // 18px
+      xl: '1.25rem',   // 20px
+      '2xl': '1.5rem', // 24px
+      '3xl': '1.875rem', // 30px
+    },
+    fontWeight: {
+      normal: 400,
+      medium: 500,
+      semibold: 600,
+      bold: 700,
+    },
+    lineHeight: {
+      tight: 1.25,
+      normal: 1.5,
+      relaxed: 1.75,
+    },
+  },
+  borderRadius: {
+    none: '0',
+    sm: '0.125rem',  // 2px
+    md: '0.375rem',  // 6px
+    lg: '0.5rem',    // 8px
+    xl: '0.75rem',   // 12px
+    full: '9999px',
+  },
+  shadows: {
+    sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+    md: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+    lg: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+    xl: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
+  },
+};
+```
+
+#### 组件设计模式
+
+```typescript
+// 2. 基于Figma设计创建可复用组件
+// components/Button/Button.tsx
+interface ButtonProps {
+  variant: 'primary' | 'secondary' | 'outline' | 'ghost';
+  size: 'sm' | 'md' | 'lg';
+  children: React.ReactNode;
+  disabled?: boolean;
+  loading?: boolean;
+  leftIcon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
+  onClick?: () => void;
+}
+
+export const Button: React.FC<ButtonProps> = ({
+  variant = 'primary',
+  size = 'md',
+  children,
+  disabled = false,
+  loading = false,
+  leftIcon,
+  rightIcon,
+  onClick,
+}) => {
+  const baseClasses = 'inline-flex items-center justify-center font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2';
+  
+  const variantClasses = {
+    primary: 'bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500',
+    secondary: 'bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500',
+    outline: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-primary-500',
+    ghost: 'text-gray-700 hover:bg-gray-100 focus:ring-primary-500',
+  };
+  
+  const sizeClasses = {
+    sm: 'px-3 py-1.5 text-sm',
+    md: 'px-4 py-2 text-base',
+    lg: 'px-6 py-3 text-lg',
+  };
+  
+  const className = `${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${
+    disabled || loading ? 'opacity-50 cursor-not-allowed' : ''
+  }`;
+
+  return (
+    <button
+      className={className}
+      disabled={disabled || loading}
+      onClick={onClick}
+    >
+      {loading && <LoadingSpinner className="mr-2" />}
+      {leftIcon && !loading && <span className="mr-2">{leftIcon}</span>}
+      {children}
+      {rightIcon && <span className="ml-2">{rightIcon}</span>}
+    </button>
+  );
+};
+```
+
+### 响应式设计规范
+
+#### 断点定义
+
+根据设计稿来定义断点，如果没有提供，就使用下面的定义
+
+```typescript
+// styles/breakpoints.ts
+export const breakpoints = {
+  sm: '640px',   // 移动设备
+  md: '768px',   // 平板设备
+  lg: '1024px',  // 笔记本电脑
+  xl: '1280px',  // 桌面电脑
+  '2xl': '1536px', // 大屏显示器
+};
+
+// 媒体查询助手
+export const mediaQueries = {
+  sm: `@media (min-width: ${breakpoints.sm})`,
+  md: `@media (min-width: ${breakpoints.md})`,
+  lg: `@media (min-width: ${breakpoints.lg})`,
+  xl: `@media (min-width: ${breakpoints.xl})`,
+  '2xl': `@media (min-width: ${breakpoints['2xl']})`,
+};
+```
+
+#### 响应式组件示例
+
+```typescript
+// components/Grid/Grid.tsx
+interface GridProps {
+  children: React.ReactNode;
+  columns?: {
+    sm?: number;
+    md?: number;
+    lg?: number;
+    xl?: number;
+  };
+  gap?: 'sm' | 'md' | 'lg';
+}
+
+export const Grid: React.FC<GridProps> = ({
+  children,
+  columns = { sm: 1, md: 2, lg: 3, xl: 4 },
+  gap = 'md',
+}) => {
+  const gridClasses = `
+    grid
+    gap-${gap}
+    grid-cols-${columns.sm || 1}
+    md:grid-cols-${columns.md || 2}
+    lg:grid-cols-${columns.lg || 3}
+    xl:grid-cols-${columns.xl || 4}
+  `;
+
+  return (
+    <div className={gridClasses}>
+      {children}
+    </div>
+  );
+};
+```
+
+### 样式管理规范
+
+#### CSS Modules + Tailwind CSS
+
+```scss
+/* components/ProductCard/ProductCard.module.scss */
+.card {
+  @apply bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200;
+  
+  .image {
+    @apply w-full h-48 object-cover rounded-t-lg;
+  }
+  
+  .content {
+    @apply p-4;
+    
+    .title {
+      @apply text-lg font-semibold text-gray-900 mb-2;
+    }
+    
+    .description {
+      @apply text-gray-600 text-sm mb-4 line-clamp-2;
+    }
+    
+    .price {
+      @apply text-xl font-bold text-primary-600;
+    }
+  }
+  
+  .actions {
+    @apply p-4 pt-0 flex justify-between items-center;
+  }
+  
+  /* 响应式样式 */
+  @screen sm {
+    .content .title {
+      @apply text-xl;
+    }
+  }
+  
+  @screen lg {
+    &:hover .image {
+      @apply scale-105;
+    }
+  }
+}
+```
+
+#### CSS-in-JS (Styled Components)
+
+```typescript
+// components/styled/Button.ts
+import styled, { css } from 'styled-components';
+
+interface StyledButtonProps {
+  variant: 'primary' | 'secondary' | 'outline';
+  size: 'sm' | 'md' | 'lg';
+  fullWidth?: boolean;
+}
+
+export const StyledButton = styled.button<StyledButtonProps>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  border-radius: 0.375rem;
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+  border: 1px solid transparent;
+  
+  &:focus {
+    outline: none;
+    ring: 2px;
+    ring-offset: 2px;
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  ${({ size }) => {
+    switch (size) {
+      case 'sm':
+        return css`
+          padding: 0.375rem 0.75rem;
+          font-size: 0.875rem;
+        `;
+      case 'lg':
+        return css`
+          padding: 0.75rem 1.5rem;
+          font-size: 1.125rem;
+        `;
+      default:
+        return css`
+          padding: 0.5rem 1rem;
+          font-size: 1rem;
+        `;
+    }
+  }}
+  
+  ${({ variant, theme }) => {
+    switch (variant) {
+      case 'primary':
+        return css`
+          background-color: ${theme.colors.primary[600]};
+          color: white;
+          
+          &:hover {
+            background-color: ${theme.colors.primary[700]};
+          }
+          
+          &:focus {
+            ring-color: ${theme.colors.primary[500]};
+          }
+        `;
+      case 'secondary':
+        return css`
+          background-color: ${theme.colors.gray[100]};
+          color: ${theme.colors.gray[900]};
+          
+          &:hover {
+            background-color: ${theme.colors.gray[200]};
+          }
+        `;
+      case 'outline':
+        return css`
+          background-color: transparent;
+          border-color: ${theme.colors.gray[300]};
+          color: ${theme.colors.gray[700]};
+          
+          &:hover {
+            background-color: ${theme.colors.gray[50]};
+          }
+        `;
+    }
+  }}
+  
+  ${({ fullWidth }) =>
+    fullWidth &&
+    css`
+      width: 100%;
+    `}
+`;
+```
+
+## 测试规范
+
+### 组件测试示例
+
+```typescript
+// components/ProductCard/ProductCard.test.tsx
+import { render, screen, fireEvent } from '@testing-library/react';
+import { ProductCard } from './ProductCard';
+
+const mockProduct = {
+  id: '1',
+  name: 'Test Product',
+  description: 'Test Description',
+  price: 99.99,
+  category: 'electronics' as const,
+  images: ['test-image.jpg'],
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+const mockOnAddToCart = jest.fn();
+
+describe('ProductCard', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('renders product information correctly', () => {
+    render(
+      <ProductCard
+        product={mockProduct}
+        onAddToCart={mockOnAddToCart}
+        isInCart={false}
+      />
+    );
+
+    expect(screen.getByText('Test Product')).toBeInTheDocument();
+    expect(screen.getByText('$99.99')).toBeInTheDocument();
+    expect(screen.getByAltText('Test Product')).toBeInTheDocument();
+  });
+
+  it('calls onAddToCart when add to cart button is clicked', () => {
+    render(
+      <ProductCard
+        product={mockProduct}
+        onAddToCart={mockOnAddToCart}
+        isInCart={false}
+      />
+    );
+
+    const addToCartButton = screen.getByText('Add to Cart');
+    fireEvent.click(addToCartButton);
+
+    expect(mockOnAddToCart).toHaveBeenCalledWith('1');
+  });
+
+  it('disables button and shows correct text when product is in cart', () => {
+    render(
+      <ProductCard
+        product={mockProduct}
+        onAddToCart={mockOnAddToCart}
+        isInCart={true}
+      />
+    );
+
+    const button = screen.getByText('Added to Cart');
+    expect(button).toBeDisabled();
+  });
+});
+```
