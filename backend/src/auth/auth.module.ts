@@ -6,6 +6,8 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtModule, JwtModuleOptions } from '@nestjs/jwt';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { UsersModule } from 'src/user/user.module';
+import { JwtStrategy } from './jwt.strategy';
 
 @Module({
   imports: [
@@ -16,10 +18,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService): JwtModuleOptions => {
-        const secret = configService.get<string>('JWT_SECRET') ?? 'dev-secret'; // 万一没配 env，有个兜底
+        const secret = configService.get<string>('JWT_SECRET') ?? 'dev-secret';
 
         const expiresInFromEnv = configService.get<string>('JWT_EXPIRES_IN');
-        const expiresIn = expiresInFromEnv ? Number(expiresInFromEnv) : 300; // 默认 300 秒 = 5 分钟
+        const expiresIn = expiresInFromEnv ? Number(expiresInFromEnv) : 300; //  300 s= 5 min
 
         return {
           secret,
@@ -29,8 +31,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         };
       },
     }),
+    UsersModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService],
+  providers: [AuthService, JwtStrategy],
 })
 export class AuthModule {}
