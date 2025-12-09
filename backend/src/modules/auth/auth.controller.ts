@@ -24,7 +24,14 @@ export class AuthController {
   // -------------------
   @Post('register')
   @ApiOkResponse({ type: AuthEntity })
-  register(@Body() { email, username, password }: RegisterDto) {
-    return this.authService.register(email, username, password);
+  register(@Body() registerDto: RegisterDto) {
+    const { email, password, username } = registerDto;
+    return this.authService.register(registerDto);
+  }
+
+  @Post('refresh')
+  @ApiOkResponse({ type: AuthEntity })
+  refresh(@Body('refreshToken') token: string) {
+    return this.authService.refresh(token);
   }
 }

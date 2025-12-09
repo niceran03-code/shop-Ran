@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -38,7 +38,17 @@ export class UsersService {
     return this.prisma.user.update({ where: { id }, data: updateUserDto });
   }
 
-  remove(id: number) {
+  async remove(id: number) {
+    const products = await this.prisma.product.findMany({
+      where: { userId: id },
+    });
+
+    if (products.length > 0) {
+      throw new ConflictException(
+        'Cannot delete user because they have related products.',
+      );
+    }
+
     return this.prisma.user.delete({ where: { id } });
   }
 }
