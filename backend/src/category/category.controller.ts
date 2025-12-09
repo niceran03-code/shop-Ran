@@ -41,6 +41,12 @@ export class CategoryController {
     return this.categoryService.findAll();
   }
 
+  @Get('tree')
+  @ApiOkResponse({ type: CategoryEntity, isArray: true })
+  findTree() {
+    return this.categoryService.findTree();
+  }
+
   @Get(':id')
   @ApiOkResponse({ type: CategoryEntity })
   findOne(@Param('id', ParseIntPipe) id: number) {

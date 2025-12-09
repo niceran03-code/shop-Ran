@@ -1,5 +1,9 @@
 // src/category/category.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -8,13 +12,21 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 export class CategoryService {
   constructor(private prisma: PrismaService) {}
 
-  create(dto: CreateCategoryDto) {
-    return this.prisma.category.create({
-      data: {
-        name: dto.name,
-        parentId: dto.parentId ?? null,
-      },
-    });
+  async create(dto: CreateCategoryDto) {
+    try {
+      return await this.prisma.category.create({
+        data: {
+          name: dto.name,
+          parentId: dto.parentId ?? null,
+        },
+      });
+    } catch (error: any) {
+      // Prisma unique constraint error code = P2002
+      if (error.code === 'P2002') {
+        throw new ConflictException('Category name already exists');
+      }
+      throw error;
+    }
   }
 
   findAll() {
@@ -24,6 +36,32 @@ export class CategoryService {
         children: true,
       },
     });
+  }
+
+  async findTree() {
+    const categories = await this.prisma.category.findMany({
+      orderBy: { id: 'asc' },
+    });
+
+    const map = new Map<number, any>();
+    categories.forEach((cat) => {
+      map.set(cat.id, { ...cat, children: [] });
+    });
+
+    const tree: any[] = [];
+
+    map.forEach((cat) => {
+      if (cat.parentId) {
+        const parent = map.get(cat.parentId);
+        if (parent) {
+          parent.children.push(cat);
+        }
+      } else {
+        tree.push(cat);
+      }
+    });
+
+    return tree;
   }
 
   async findOne(id: number) {
