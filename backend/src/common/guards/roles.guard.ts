@@ -1,20 +1,24 @@
 // src/common/guards/roles.guard.ts
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { ROLES_KEY } from '../../common/decorators/roles.decorator';
+import { Role } from '@prisma/client';
 
-/**
- * Basic skeleton for a role-based guard.
- * You can extend this to read roles metadata from handlers and compare with user roles.
- */
 @Injectable()
 export class RolesGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
-    // TODO: Implement role-based access control according to your business logic
-    // const request = context.switchToHttp().getRequest();
-    // const user = request.user;
-    // const requiredRoles = this.reflector.get<string[]>('roles', context.getHandler());
-    // ...
-    return true;
+  constructor(private reflector: Reflector) {}
+
+  canActivate(ctx: ExecutionContext): boolean {
+    const requiredRoles = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [
+      ctx.getHandler(),
+      ctx.getClass(),
+    ]);
+
+    if (!requiredRoles) return true;
+
+    const request = ctx.switchToHttp().getRequest();
+    const user = request.user;
+
+    return requiredRoles.includes(user.role);
   }
 }
-
-

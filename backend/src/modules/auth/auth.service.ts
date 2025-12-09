@@ -33,6 +33,12 @@ export class AuthService {
 
     if (!user) throw new NotFoundException(`No user found for email: ${email}`);
 
+    if (user.role !== 'ADMIN') {
+      throw new UnauthorizedException(
+        'Only administrators may access the admin system',
+      );
+    }
+
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) throw new UnauthorizedException('Invalid password');
 
@@ -84,6 +90,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         username: user.username,
+        role: 'USER',
       },
     };
   }

@@ -1,8 +1,10 @@
 //POST /auth/login
-//{
-// "email": "user1@example.com",
-//  "password": "password-sabin"
-//}
+/*
+{
+  "email": "user1@example.com",
+  "password": "password-sabin"
+}
+*/
 
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -17,11 +19,13 @@ async function main() {
     where: { email: 'user1@example.com' },
     update: {
       password: passwordSabin,
+      role: 'ADMIN',
     },
     create: {
       email: 'user1@example.com',
       username: 'Sabin',
       password: passwordSabin,
+      role: 'ADMIN',
     },
   });
 
