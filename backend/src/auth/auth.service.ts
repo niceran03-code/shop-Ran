@@ -1,8 +1,9 @@
-//src/auth/auth.service.ts
+// src/auth/auth.service.ts
 import {
   Injectable,
   NotFoundException,
   UnauthorizedException,
+  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from './../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
@@ -16,26 +17,60 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async login(email: string, password: string): Promise<AuthEntity> {
-    // Step 1: Fetch a user with the given email
-    const user = await this.prisma.user.findUnique({ where: { email: email } });
+  // -----------------------------
+  // LOGIN
+  // -----------------------------
+  async login(email: string, password: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
 
-    // If no user is found, throw an error
     if (!user) {
       throw new NotFoundException(`No user found for email: ${email}`);
     }
 
-    // Step 2: Check if the password is correct
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
-    // If password does not match, throw an error
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid password');
     }
 
-    // Step 3: Generate a JWT containing the user's ID and return it
+    const accessToken = this.jwtService.sign({ userId: user.id });
+
+    // 过滤掉 password，防止泄漏
+    const { password: _, ...safeUser } = user;
+
     return {
-      accessToken: this.jwtService.sign({ userId: user.id }),
+      accessToken,
+      user: safeUser,
+    };
+  }
+
+  // -----------------------------
+  // REGISTER
+  // -----------------------------
+  async register(email: string, username: string, password: string) {
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      throw new ConflictException('Email already registered');
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newUser = await this.prisma.user.create({
+      data: {
+        email,
+        username,
+        password: hashedPassword,
+      },
+    });
+
+    const accessToken = this.jwtService.sign({ userId: newUser.id });
+
+    // 过滤 password
+    const { password: _, ...safeUser } = newUser;
+
+    return {
+      accessToken,
+      user: safeUser,
     };
   }
 }
