@@ -42,7 +42,7 @@ export class ProductController {
   }
 
   // ----------------------
-  // GET INACTIVE (你的额外功能)
+  // GET INACTIVE
   // ----------------------
   @Get('inactive')
   @ApiOkResponse({ type: ProductEntity, isArray: true })

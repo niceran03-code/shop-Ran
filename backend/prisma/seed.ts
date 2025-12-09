@@ -30,6 +30,11 @@ async function main() {
       password: passwordAlex,
     },
   });
+  //POST /auth/login
+  //{
+  // "email": "user1@example.com",
+  //  "password": "password-sabin"
+  //}
 
   // Create dummy categories
   const parentCategory = await prisma.category.upsert({
