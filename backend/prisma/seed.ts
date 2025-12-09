@@ -1,25 +1,33 @@
 import { PrismaClient } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
-
+const roundsOfHashing = 10;
 async function main() {
+  const passwordSabin = await bcrypt.hash('password-sabin', roundsOfHashing);
+  const passwordAlex = await bcrypt.hash('password-alex', roundsOfHashing);
+
   // Create dummy users
   const user1 = await prisma.user.upsert({
     where: { email: 'user1@example.com' },
-    update: {},
+    update: {
+      password: passwordSabin,
+    },
     create: {
       email: 'user1@example.com',
-      username: 'user1',
-      password: 'password1', // 演示用，真实项目请使用 hash!
+      username: 'Sabin',
+      password: passwordSabin,
     },
   });
 
   const user2 = await prisma.user.upsert({
     where: { email: 'user2@example.com' },
-    update: {},
+    update: {
+      password: passwordAlex,
+    },
     create: {
       email: 'user2@example.com',
-      username: 'user2',
-      password: 'password2',
+      username: 'Alex',
+      password: passwordAlex,
     },
   });
 
@@ -94,7 +102,7 @@ async function main() {
 
 main()
   .then(() => {
-    console.log('🌱 Seeder executed successfully!');
+    console.log(' Seeder executed successfully!');
   })
   .catch((e) => {
     console.error(e);
