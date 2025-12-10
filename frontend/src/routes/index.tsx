@@ -1,9 +1,9 @@
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
-// import { LoginPage } from "../pages/Login/LoginPage";
 import { RegisterPage } from "../pages/Register/RegisterPage";
 import { DashboardPage } from "../pages/Dashboard/DashbosrdPage";
 import { Layout } from "../components/Layout/Layout";
 import LoginPage from "../pages/Login/LoginPage";
+import { ProtectedRoute } from "../components/ProtectedRoute";
 
 export const router = createBrowserRouter([
   {
@@ -15,10 +15,13 @@ export const router = createBrowserRouter([
     element: <RegisterPage />,
   },
 
-  // 后台管理布局
   {
     path: "/",
-    element: <Layout />,
+    element: (
+      <ProtectedRoute>
+        <Layout />
+      </ProtectedRoute>
+    ),
     children: [
       {
         path: "dashboard",
