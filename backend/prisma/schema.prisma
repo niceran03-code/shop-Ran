@@ -20,6 +20,7 @@ model Product {
   stock       Int
   isActive    Boolean   @default(true)
   description String?
+  deletedAt DateTime? 
   
   // Relations
   userId      Int

@@ -9,6 +9,7 @@ import {
   ParseIntPipe,
   NotFoundException,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -49,9 +50,8 @@ export class ProductController {
   // ----------------------
   @Get()
   @ApiOkResponse({ type: ProductEntity, isArray: true })
-  async findAll() {
-    const products = await this.productService.findAll();
-    return products.map((p) => new ProductEntity(p));
+  findAll() {
+    return this.productService.findAll();
   }
 
   // ----------------------
@@ -62,21 +62,6 @@ export class ProductController {
   async findInactive() {
     const products = await this.productService.findInactive();
     return products.map((p) => new ProductEntity(p));
-  }
-
-  // ----------------------
-  // GET ONE BY ID
-  // ----------------------
-  @Get(':id')
-  @ApiOkResponse({ type: ProductEntity })
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    const product = await this.productService.findOne(id);
-
-    if (!product) {
-      throw new NotFoundException(`Product with ID ${id} does not exist.`);
-    }
-
-    return new ProductEntity(product);
   }
 
   // ----------------------
@@ -95,10 +80,74 @@ export class ProductController {
   // ----------------------
   // DELETE
   // ----------------------
+  // ================================
+  // 软删除：把商品丢进回收站（设置 deletedAt）
+  // ================================
   @Delete(':id')
   @ApiOkResponse({ type: ProductEntity })
   async remove(@Param('id', ParseIntPipe) id: number) {
-    const product = await this.productService.remove(id);
+    return this.productService.softDelete(id); // 调用 softDelete，而不是 delete
+  }
+
+  // ================================
+  //回收站：获取所有已删除商品
+  // GET /product/deleted
+  // ================================
+  @Get('deleted')
+  @ApiOkResponse({ type: ProductEntity, isArray: true })
+  findDeleted() {
+    // 返回 deletedAt 不为 null 的商品
+    return this.productService.findDeleted();
+  }
+
+  // ================================
+  //  恢复商品：从回收站恢复
+  // PATCH /product/restore/:id
+  // ================================
+  @Patch('restore/:id')
+  @ApiOkResponse({ type: ProductEntity })
+  restore(@Param('id', ParseIntPipe) id: number) {
+    // 恢复商品（deletedAt = null，isActive = true）
+    return this.productService.restore(id);
+  }
+
+  // ================================
+  // DELETE /product/force/:id
+  // ================================
+  @Delete('force/:id')
+  @ApiOkResponse({ type: ProductEntity })
+  forceDelete(@Param('id', ParseIntPipe) id: number) {
+    //  新增：真正 delete
+    return this.productService.forceDelete(id);
+  }
+
+  @Get('search')
+  async searchProducts(
+    @Query('id') id?: number,
+    @Query('name') name?: string,
+    @Query('category') category?: number,
+    @Query('subCategory') subCategory?: number,
+  ) {
+    return this.productService.search({
+      id: id ? Number(id) : undefined,
+      name,
+      categoryId: category ? Number(category) : undefined,
+      subCategoryId: subCategory ? Number(subCategory) : undefined,
+    });
+  }
+
+  // ----------------------
+  // GET ONE BY ID
+  // ----------------------
+  @Get(':id')
+  @ApiOkResponse({ type: ProductEntity })
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    const product = await this.productService.findOne(id);
+
+    if (!product) {
+      throw new NotFoundException(`Product with ID ${id} does not exist.`);
+    }
+
     return new ProductEntity(product);
   }
 }

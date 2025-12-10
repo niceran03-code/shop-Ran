@@ -22,7 +22,7 @@ export default function LoginPage() {
       message.success("Login successful!");
 
       // 跳转到后台首页
-      navigate("/dashboard");
+      navigate("/dashboard", { replace: true });
     } catch (error: any) {
       message.error(error.response?.data?.message || "Login failed");
     } finally {

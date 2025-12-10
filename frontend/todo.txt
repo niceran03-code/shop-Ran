@@ -1,0 +1,4 @@
+🔥 1. 后端实现真实分页（page + pageSize）
+🔥 2. 搜索栏 UI 做成专业的 Filter Bar（下拉选择分类树）
+🔥 3. ProductsForm 完整实现（含分类选择、用户选择、库存管理）
+🔥 4. 优化 ProductsPage 动画和 loading 状态

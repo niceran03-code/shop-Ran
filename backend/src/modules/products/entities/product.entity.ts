@@ -21,6 +21,9 @@ export class ProductEntity implements Product {
   @ApiProperty({ required: false, nullable: true })
   description: string | null;
 
+  @ApiProperty({ required: false, nullable: true })
+  deletedAt: Date | null;
+
   @ApiProperty()
   categoryId: number;
 

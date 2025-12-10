@@ -15,9 +15,12 @@ export class ProductService {
     });
   }
 
-  findAll() {
-    console.log('prisma instance:', this.prisma);
-    return this.prisma.product.findMany({ where: { isActive: true } });
+  async findAll() {
+    return this.prisma.product.findMany({
+      where: {
+        deletedAt: null, // 不返回软删除的数据
+      },
+    });
   }
 
   findInactive() {
@@ -43,9 +46,59 @@ export class ProductService {
     });
   }
 
-  remove(id: number) {
+  async softDelete(id: number) {
+    return this.prisma.product.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+        isActive: false,
+      },
+    });
+  }
+
+  async findDeleted() {
+    return this.prisma.product.findMany({
+      where: { deletedAt: { not: null } },
+    });
+  }
+
+  async restore(id: number) {
+    return this.prisma.product.update({
+      where: { id },
+      data: { deletedAt: null, isActive: true },
+    });
+  }
+
+  async forceDelete(id: number) {
     return this.prisma.product.delete({
       where: { id },
+    });
+  }
+
+  async search(params: {
+    id?: number;
+    name?: string;
+    categoryId?: number;
+    subCategoryId?: number;
+  }) {
+    const where: any = {};
+
+    if (params.id) where.id = params.id;
+
+    if (params.name)
+      where.name = { contains: params.name, mode: 'insensitive' };
+
+    if (params.categoryId) where.categoryId = params.categoryId;
+
+    if (params.subCategoryId)
+      where.category = { parentId: params.subCategoryId };
+
+    return this.prisma.product.findMany({
+      where,
+      include: {
+        category: true,
+        user: true,
+      },
     });
   }
 }

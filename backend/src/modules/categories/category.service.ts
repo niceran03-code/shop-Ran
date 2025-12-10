@@ -92,4 +92,27 @@ export class CategoryService {
     await this.findOne(id);
     return this.prisma.category.delete({ where: { id } });
   }
+
+  async getPaginatedTree(page: number, pageSize: number) {
+    const skip = (page - 1) * pageSize;
+
+    // 1) 取顶级分类
+    const [items, total] = await Promise.all([
+      this.prisma.category.findMany({
+        where: { parentId: null },
+        include: { children: true },
+        skip,
+        take: pageSize,
+        orderBy: { id: 'asc' },
+      }),
+      this.prisma.category.count({
+        where: { parentId: null },
+      }),
+    ]);
+
+    return {
+      data: items,
+      total,
+    };
+  }
 }

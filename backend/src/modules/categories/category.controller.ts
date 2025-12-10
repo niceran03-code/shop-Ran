@@ -9,6 +9,8 @@ import {
   Delete,
   ParseIntPipe,
   UseGuards,
+  Query,
+  DefaultValuePipe,
 } from '@nestjs/common';
 import { CategoryService } from './category.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -42,9 +44,11 @@ export class CategoryController {
   }
 
   @Get('tree')
-  @ApiOkResponse({ type: CategoryEntity, isArray: true })
-  findTree() {
-    return this.categoryService.findTree();
+  getTree(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('pageSize', new DefaultValuePipe(5), ParseIntPipe) pageSize: number,
+  ) {
+    return this.categoryService.getPaginatedTree(page, pageSize);
   }
 
   @Get(':id')
