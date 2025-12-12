@@ -14,10 +14,55 @@ export class ProductService {
       data,
     });
   }
-  async findAll() {
+  async findAll(params?: {
+    userId?: number;
+    userName?: string;
+    isActive?: boolean;
+  }) {
+    const where: any = {
+      deletedAt: null,
+    };
+
+    if (params?.userId) {
+      where.userId = params.userId;
+    }
+
+    if (params?.userName) {
+      where.user = {
+        username: {
+          contains: params.userName,
+          mode: 'insensitive',
+        },
+      };
+    }
+
+    if (params?.isActive !== undefined) {
+      where.isActive = params.isActive;
+    }
+
     return this.prisma.product.findMany({
-      where: {
-        deletedAt: null, // 不返回软删除的数据
+      where,
+      include: {
+        user: true,
+        category: true,
+      },
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  async toggleStatus(id: number) {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+    });
+
+    if (!product) {
+      throw new Error('Product not found');
+    }
+
+    return this.prisma.product.update({
+      where: { id },
+      data: {
+        isActive: !product.isActive,
       },
     });
   }

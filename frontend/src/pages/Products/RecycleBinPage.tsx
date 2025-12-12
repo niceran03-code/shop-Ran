@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Table, Button, Space, message, Modal } from "antd";
 import api from "../../utils/axios";
+import { useNavigate } from "react-router-dom";
 
 export default function RecycleBinPage() {
   const [deletedProducts, setDeletedProducts] = useState([]);
-
+  const navigate = useNavigate();
   // ---------------------------
   // Fetch deleted products
   // ---------------------------
@@ -107,6 +108,12 @@ export default function RecycleBinPage() {
 
   return (
     <div>
+      <Button
+        style={{ marginBottom: 16 }}
+        onClick={() => navigate("/products")}
+      >
+        Back to Products
+      </Button>
       <h2>Recycle Bin</h2>
 
       <Table

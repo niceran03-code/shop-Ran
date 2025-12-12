@@ -2,7 +2,7 @@
 import { ProductsForm } from "./ProductsForm";
 import api from "../../utils/axios";
 import { useNavigate } from "react-router-dom";
-import { message } from "antd";
+import { message, Button } from "antd";
 
 const CreateProductsPage = () => {
   const navigate = useNavigate();
@@ -15,7 +15,15 @@ const CreateProductsPage = () => {
 
   return (
     <div>
+      <Button
+        style={{ marginBottom: 16 }}
+        onClick={() => navigate("/products")}
+      >
+        Back to Products
+      </Button>
+
       <h2>Create Product</h2>
+
       <ProductsForm onSubmit={handleCreate} />
     </div>
   );

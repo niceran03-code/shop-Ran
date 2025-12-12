@@ -1,3 +1,4 @@
+//fronted/src/components/ProtectedRoute.tsx
 import type { JSX } from "react";
 import { Navigate } from "react-router-dom";
 

@@ -1,7 +1,7 @@
 // frontend/src/pages/Products/EditProductsPage.tsx
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { message, Spin } from "antd";
+import { useParams, useNavigate, data } from "react-router-dom";
+import { Button, message, Spin } from "antd";
 import api from "../../utils/axios";
 import { ProductsForm } from "./ProductsForm";
 
@@ -45,7 +45,14 @@ const EditProductsPage = () => {
 
   return (
     <div>
+      <Button
+        style={{ marginBottom: 16 }}
+        onClick={() => navigate("/products")}
+      >
+        Back to Products
+      </Button>
       <h2>Edit Product</h2>
+
       <ProductsForm initialData={initialData} onSubmit={handleUpdate} />
     </div>
   );

@@ -42,3 +42,12 @@
   min-height: 360px;
   border-radius: 8px;
 }
+
+/* 让 SubMenu（例如 Products）在选中时也像 Menu.Item 一样整行高亮 */
+:global(
+    .ant-menu-dark.ant-menu-inline
+      .ant-menu-submenu-selected
+      > .ant-menu-submenu-title
+  ) {
+  background: #1677ff;
+}

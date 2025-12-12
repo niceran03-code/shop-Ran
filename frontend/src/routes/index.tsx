@@ -42,7 +42,10 @@ export const router = createBrowserRouter([
         path: "products/edit/:id",
         element: <EditProductsPage />,
       },
-      { path: "recycle-bin", element: <RecycleBinPage /> },
+      {
+        path: "products/recycle",
+        element: <RecycleBinPage />,
+      },
       {
         path: "categories",
         element: <CategoriesPage />,

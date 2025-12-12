@@ -3,11 +3,253 @@
   "password": "password-sabin"
 }
 
+🧩 Task 1：统一 Product 列表接口（后端）
 
-2️⃣ 商品列表页分页 + 筛选
-🔥 1. 后端实现真实分页（page + pageSize）
-🔥 2. 搜索栏 UI 做成专业的 Filter Bar（下拉选择分类树）
+ 删除接口：GET /product/search
 
-🔥 4. 优化 ProductsPage 动画和 loading 状态
+ 扩展接口：GET /product
 
-3️⃣ “帮我把 useAuth 扩展成返回 user 信息”
+ 支持分页参数
+
+page
+
+pageSize
+
+ 支持筛选参数
+
+name
+
+categoryId
+
+createdBy（用户 ID）
+
+createdByName（用户名，模糊）
+
+ 支持排序
+
+ORDER BY updatedAt DESC, createdAt DESC
+
+ 返回结构统一：
+
+{
+  data: Product[],
+  total: number
+}
+
+🧩 Task 2：Product 列表页前端重构
+
+ 删除前端 /product/search 所有调用
+
+ 所有列表请求统一走 /product
+
+ 使用分页 state：
+
+page
+
+pageSize
+
+ Table 数据源使用 res.data.data
+
+ Pagination 使用 res.data.total
+
+🧩 Task 3：筛选栏（Filter Bar）专业化
+
+ 使用 draft / applied 双状态
+
+ 输入框不触发查询
+
+ 点击 Search 才提交筛选条件
+
+ 支持筛选字段
+
+商品名称
+
+分类（TreeSelect）
+
+创建用户（ID / 用户名）
+
+🧩 Task 4：Category → Product 联动（核心）
+
+ 新增分类树接口（后端）
+
+GET /categories/tree
+
+ TreeSelect 数据结构统一
+
+ 支持：
+
+一级分类 → 包含所有子分类商品
+
+二级分类 → 只筛自身
+
+ 分类页面点击分类
+
+跳转到 ProductsPage
+
+自动带筛选条件
+
+🧩 Task 5：Product 表格列优先级整理
+
+ 明确“重要列”
+
+ID
+
+Name
+
+Price
+
+Stock
+
+Status
+
+ 次要列设置 responsive
+
+Category
+
+CreatedBy
+
+Description
+
+ 小屏隐藏非核心列
+
+ 保证操作列始终可见
+
+🟡 第二阶段（体验 & 易用性，可并行）
+
+目标：让后台“像一个成熟产品”
+
+🧩 Task 6：商品状态 Switch
+
+ 列表中用 Switch 代替文字状态
+
+ 点击立即更新状态
+
+ 接口支持快速状态更新
+
+ 状态切换有 loading / 禁用态
+
+🧩 Task 7：时间字段修正
+
+ 商品列表显示：
+
+createdAt
+
+updatedAt
+
+ 移除 deletedAt（仅回收站显示）
+
+ 分类列表显示：
+
+ID
+
+createdAt
+
+updatedAt
+
+🧩 Task 8：统一返回按钮
+
+ 创建商品页 → 返回商品列表
+
+ 编辑商品页 → 返回商品列表
+
+ 回收站页 → 返回商品列表
+
+ 商品详情页 → 返回商品列表
+
+🧩 Task 9：Loading & 动画优化
+
+ Table loading
+
+ 搜索按钮 loading
+
+ 空数据 Empty 状态
+
+ 状态切换动画
+
+ 页面切换过渡自然
+
+🔵 第三阶段（新模块｜权限核心）
+
+目标：真正“像后台”，而不是 CRUD Demo
+
+🧩 Task 10：User 管理页面（前端 + 后端）
+
+ 用户列表接口
+
+ 字段展示
+
+ID
+
+用户名
+
+邮箱
+
+Role
+
+createdAt
+
+updatedAt
+
+ 修改用户 Role（admin 专属）
+
+ role 修改实时生效
+
+🧩 Task 11：用户 → 商品联动
+
+ 用户列表中提供“查看商品”
+
+ 点击后跳转 ProductsPage
+
+ 自动附带筛选条件：
+
+createdBy = userId
+
+🧩 Task 12：useAuth 扩展
+
+ useAuth 返回：
+
+{
+  isAuthenticated,
+  user: {
+    id,
+    username,
+    email,
+    role
+  }
+}
+
+
+ 前端基于 role 控制页面访问
+ 非 admin 禁止进入后台
+
+🔴 第四阶段（进阶 / 加分项）
+
+目标：从“后台系统”升级为“完整产品”
+
+🧩 Task 13：商品富文本描述
+
+ 支持文字 + 图片
+
+ 后端字段支持富文本
+
+ 前端编辑器接入
+
+🧩 Task 14：商品详情子页面
+
+ 独立商品详情页
+
+ 展示完整描述与图片
+
+ 编辑按钮
+
+ 返回按钮
+
+🧩 Task 15：商品批量操作
+
+ 批量删除
+
+ 批量上架
+
+ 批量下架
+
+ Table 行选择交互

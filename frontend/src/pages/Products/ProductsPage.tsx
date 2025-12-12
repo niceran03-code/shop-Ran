@@ -9,35 +9,83 @@ import {
   Tooltip,
   Pagination,
   Input,
+  TreeSelect,
 } from "antd";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../../utils/axios";
 import { DeleteOutlined, SearchOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 
+interface CategoryNode {
+  id: number;
+  name: string;
+  children?: CategoryNode[];
+}
+
 export default function ProductsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  // ---------------------------
+  // Pagination
+  // ---------------------------
   const [page, setPage] = useState(1);
-
-  // ---------------------------
-  // State
-  // ---------------------------
-  const [products, setProducts] = useState([]);
-  const [total, setTotal] = useState(0);
   const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
 
-  // 搜索字段
-  const [searchId, setSearchId] = useState("");
+  // ---------------------------
+  // Data
+  // ---------------------------
+  const [products, setProducts] = useState<any[]>([]);
+
+  // ---------------------------
+  // Category tree
+  // ---------------------------
+  const [categoryTree, setCategoryTree] = useState<any[]>([]);
+
+  // ---------------------------
+  // Draft filters（输入态，不触发搜索）
+  // ---------------------------
+  const [draftName, setDraftName] = useState("");
+  const [draftCategoryId, setDraftCategoryId] = useState<number | undefined>();
+
+  // ---------------------------
+  // Applied filters（生效态，用于查询）
+  // ---------------------------
   const [searchName, setSearchName] = useState("");
-  const [categoryIdFilter, setCategoryIdFilter] = useState("");
-  const [subCategoryId, setSubCategoryId] = useState("");
+  const [categoryIdFilter, setCategoryIdFilter] = useState<
+    number | undefined
+  >();
 
-  // 分类传参 (?category=ID)
+  // URL category (?category=ID)
   const categoryIdFromUrl = searchParams.get("category");
 
   // ---------------------------
-  // Fetch all products
+  // Fetch category tree
+  // ---------------------------
+  const fetchCategories = async () => {
+    try {
+      const res = await api.get("/categories/tree");
+      setCategoryTree(transformToTreeSelect(res.data.data ?? res.data));
+    } catch {
+      message.error("Failed to load categories");
+    }
+  };
+
+  // 把后端 category tree 转成 TreeSelect 结构
+  const transformToTreeSelect = (nodes: CategoryNode[]): any[] => {
+    return nodes.map((node) => ({
+      title: node.name,
+      value: node.id,
+      key: node.id,
+      children: node.children
+        ? transformToTreeSelect(node.children)
+        : undefined,
+    }));
+  };
+
+  // ---------------------------
+  // Fetch products（唯一入口）
   // ---------------------------
   const fetchProducts = async () => {
     try {
@@ -45,64 +93,50 @@ export default function ProductsPage() {
         params: {
           page,
           pageSize,
+          name: searchName || undefined,
+          categoryId: categoryIdFilter || undefined,
         },
       });
 
-      setProducts(res.data.data); // 给 Table 的数组
-      setTotal(res.data.total); //  给 Pagination 用
+      setProducts(res.data.data);
+      setTotal(res.data.total);
     } catch (err) {
       console.error(err);
       message.error("Failed to load products");
     }
   };
 
+  // ---------------------------
+  // Effects
+  // ---------------------------
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
   useEffect(() => {
     fetchProducts();
-  }, [page, pageSize]);
+  }, [page, pageSize, searchName, categoryIdFilter]);
 
-  // ---------------------------
-  // 搜索产品
-  // ---------------------------
-  const handleSearch = async () => {
-    try {
-      const res = await api.get("/product/search", {
-        params: {
-          id: searchId || undefined,
-          name: searchName || undefined,
-          category: categoryIdFilter || undefined,
-          subCategory: subCategoryId || undefined,
-        },
-      });
-
-      setProducts(res.data);
-    } catch (err) {
-      console.error(err);
-      message.error("Search failed");
-    }
-  };
-
-  // ---------------------------
-  // 从分类页面跳转自动过滤
-  // ---------------------------
   useEffect(() => {
     if (categoryIdFromUrl) {
-      setCategoryIdFilter(categoryIdFromUrl);
-      handleSearch();
+      const id = Number(categoryIdFromUrl);
+      setDraftCategoryId(id);
+      setCategoryIdFilter(id);
+      setPage(1);
     }
   }, [categoryIdFromUrl]);
 
   // ---------------------------
-  // 删除产品（软删除）
+  // Delete (soft delete)
   // ---------------------------
   const deleteProduct = async (id: number) => {
     Modal.confirm({
       title: "Delete product?",
       centered: true,
-      content: "This product will be moved to the recycle bin for 7 days.",
+      content: "This product will be moved to the recycle bin.",
       okText: "Delete",
       okType: "danger",
       cancelText: "Cancel",
-
       async onOk() {
         try {
           await api.delete(`/product/${id}`);
@@ -116,11 +150,12 @@ export default function ProductsPage() {
   };
 
   // ---------------------------
-  // 表格列（响应式）
+  // Table columns（⭐ 自适应保留 ⭐）
   // ---------------------------
   const columns: ColumnsType<any> = [
     { title: "ID", dataIndex: "id", width: 60, fixed: "left" },
     { title: "Name", dataIndex: "name", fixed: "left" },
+
     { title: "Price", dataIndex: "price", responsive: ["md"] },
     { title: "Stock", dataIndex: "stock", responsive: ["md"] },
     {
@@ -155,10 +190,7 @@ export default function ProductsPage() {
       fixed: "right",
       render: (record) => (
         <Space>
-          <Button
-            type="primary"
-            onClick={() => navigate(`/products/edit/${record.id}`)}
-          >
+          <Button onClick={() => navigate(`/products/edit/${record.id}`)}>
             Edit
           </Button>
           <Button danger onClick={() => deleteProduct(record.id)}>
@@ -171,7 +203,7 @@ export default function ProductsPage() {
 
   return (
     <div>
-      {/* 创建产品 */}
+      {/* Create */}
       <Button
         type="primary"
         style={{ marginBottom: 16 }}
@@ -180,7 +212,7 @@ export default function ProductsPage() {
         Create Product
       </Button>
 
-      {/* 搜索区域 */}
+      {/* Filter Bar */}
       <div
         style={{
           display: "flex",
@@ -191,40 +223,37 @@ export default function ProductsPage() {
         }}
       >
         <Input
-          placeholder="Search by ID"
-          style={{ width: 160 }}
-          value={searchId}
-          onChange={(e) => setSearchId(e.target.value)}
+          placeholder="Search by name"
+          style={{ width: 220 }}
+          value={draftName}
+          onChange={(e) => setDraftName(e.target.value)}
         />
 
-        <Input
-          placeholder="Search by Name"
-          style={{ width: 200 }}
-          value={searchName}
-          onChange={(e) => setSearchName(e.target.value)}
+        <TreeSelect
+          style={{ width: 260 }}
+          placeholder="Select category"
+          allowClear
+          treeDefaultExpandAll
+          value={draftCategoryId}
+          treeData={categoryTree}
+          onChange={(v) => setDraftCategoryId(v)}
         />
 
-        <Input
-          placeholder="Category ID"
-          style={{ width: 160 }}
-          value={categoryIdFilter}
-          onChange={(e) => setCategoryIdFilter(e.target.value)}
-        />
-
-        <Input
-          placeholder="Sub Category ID"
-          style={{ width: 160 }}
-          value={subCategoryId}
-          onChange={(e) => setSubCategoryId(e.target.value)}
-        />
-
-        <Button icon={<SearchOutlined />} type="primary" onClick={handleSearch}>
+        <Button
+          icon={<SearchOutlined />}
+          type="primary"
+          onClick={() => {
+            setSearchName(draftName);
+            setCategoryIdFilter(draftCategoryId);
+            setPage(1);
+          }}
+        >
           Search
         </Button>
       </div>
 
-      {/* 产品表格 */}
-      <Table<any>
+      {/* Table */}
+      <Table
         rowKey="id"
         columns={columns}
         dataSource={products}
@@ -232,28 +261,27 @@ export default function ProductsPage() {
         scroll={{ x: 1200 }}
       />
 
-      {/* 底部 回收站 + 分页 UI */}
+      {/* Footer */}
       <div
         style={{
           display: "flex",
           justifyContent: "flex-end",
           gap: 12,
           marginTop: 20,
-          alignItems: "center",
         }}
       >
         <Tooltip title="Recycle Bin">
           <Button
             shape="circle"
             icon={<DeleteOutlined />}
-            onClick={() => navigate("/recycle-bin")}
+            onClick={() => navigate("/products/recycle")}
           />
         </Tooltip>
 
         <Pagination
           current={page}
-          total={total}
           pageSize={pageSize}
+          total={total}
           onChange={(p, ps) => {
             setPage(p);
             setPageSize(ps);

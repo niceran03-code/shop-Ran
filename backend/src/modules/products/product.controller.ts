@@ -142,6 +142,16 @@ export class ProductController {
     return this.productService.forceDelete(id);
   }
 
+  // ================================
+  // 切换商品上架 / 下架状态
+  // PATCH /product/:id/status
+  // ================================
+  @Patch(':id/status')
+  @ApiOkResponse({ type: ProductEntity })
+  async toggleStatus(@Param('id', ParseIntPipe) id: number) {
+    const product = await this.productService.toggleStatus(id);
+    return new ProductEntity(product);
+  }
   // ----------------------
   // GET ONE BY ID
   // ----------------------

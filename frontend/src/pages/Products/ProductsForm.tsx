@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Form, Input, InputNumber, Button, message, Select } from "antd";
 import api from "../../utils/axios";
+import { Switch } from "antd";
 
 interface Category {
   id: number;
@@ -77,6 +78,10 @@ export const ProductsForm = ({ initialData, onSubmit }: ProductFormProps) => {
         <InputNumber min={0} style={{ width: "100%" }} />
       </Form.Item>
 
+      <Form.Item label="Description" name="description">
+        <Input.TextArea rows={4} placeholder="Product description" />
+      </Form.Item>
+
       <Form.Item
         label="Category"
         name="categoryId"
@@ -95,15 +100,10 @@ export const ProductsForm = ({ initialData, onSubmit }: ProductFormProps) => {
       <Form.Item
         label="Status"
         name="isActive"
+        valuePropName="checked"
         initialValue={true}
-        rules={[{ required: true }]}
       >
-        <Select
-          options={[
-            { value: true, label: "Active" },
-            { value: false, label: "Inactive" },
-          ]}
-        />
+        <Switch />
       </Form.Item>
 
       <Button type="primary" htmlType="submit" block>
