@@ -1,17 +1,13 @@
-import {
-  useEffect,
-  useState,
-  type JSXElementConstructor,
-  type ReactElement,
-  type ReactNode,
-  type ReactPortal,
-} from "react";
-import { Table, Button, Space, message, Pagination } from "antd";
+// frontend/src/pages/Categories/CategoriesPage.tsx
+import { useEffect, useState } from "react";
+import { Table, Button, Space, message, Pagination, Typography } from "antd";
 import { useNavigate } from "react-router-dom";
 import api from "../../utils/axios";
 
+const { Link } = Typography;
+
 export default function CategoriesPage() {
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 5;
@@ -29,8 +25,7 @@ export default function CategoriesPage() {
 
       setCategories(res.data.data);
       setTotal(res.data.total);
-    } catch (err) {
-      console.error(err);
+    } catch {
       message.error("Failed to load categories");
     }
   };
@@ -46,41 +41,20 @@ export default function CategoriesPage() {
     {
       title: "Category Name",
       dataIndex: "name",
-      render: (
-        text:
-          | string
-          | number
-          | bigint
-          | boolean
-          | ReactElement<unknown, string | JSXElementConstructor<any>>
-          | Iterable<ReactNode>
-          | ReactPortal
-          | Promise<
-              | string
-              | number
-              | bigint
-              | boolean
-              | ReactPortal
-              | ReactElement<unknown, string | JSXElementConstructor<any>>
-              | Iterable<ReactNode>
-              | null
-              | undefined
-            >
-          | null
-          | undefined,
-        record: { id: any }
-      ) => (
-        <span
-          style={{ cursor: "pointer", color: "#1677ff" }}
-          onClick={() => navigate(`/products?category=${record.id}`)}
+      render: (text: string, record: { id: number }) => (
+        <Link
+          onClick={(e) => {
+            e.stopPropagation(); // ✅ 防止冒泡
+            navigate(`/products?category=${record.id}`);
+          }}
         >
           {text}
-        </span>
+        </Link>
       ),
     },
     {
       title: "Actions",
-      render: (record: { id: any }) => (
+      render: (record: { id: number }) => (
         <Space>
           <Button
             type="primary"

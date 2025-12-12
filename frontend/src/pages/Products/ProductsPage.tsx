@@ -103,12 +103,21 @@ export default function ProductsPage() {
   // frontend/src/pages/Products/ProductsPage.tsx
   const fetchProducts = async () => {
     try {
+      const categoryIdFromUrl = searchParams.get("category");
+
+      const effectiveCategoryId =
+        categoryIdFromUrl !== null
+          ? Number(categoryIdFromUrl)
+          : categoryIdFilter;
+
+      console.log("fetch with categoryId:", effectiveCategoryId);
+
       const res = await api.get("/product", {
         params: {
           page,
           pageSize,
           name: searchName || undefined,
-          categoryId: categoryIdFilter || undefined,
+          categoryId: effectiveCategoryId || undefined,
           userId: userIdFilter,
           userName: userNameFilter,
         },
@@ -142,8 +151,17 @@ export default function ProductsPage() {
   useEffect(() => {
     if (categoryIdFromUrl) {
       const id = Number(categoryIdFromUrl);
+
+      // 1️⃣ 填充输入态（UI 显示）
       setDraftCategoryId(id);
+
+      // 2️⃣ 生效搜索条件（等价于点 Search）
       setCategoryIdFilter(id);
+
+      // ⚠️ 关键：如果你有其他 search 条件，明确保持不变
+      // setSearchName(prev => prev);
+
+      // 3️⃣ 回到第一页
       setPage(1);
     }
   }, [categoryIdFromUrl]);
