@@ -26,6 +26,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
+import { Req } from '@nestjs/common';
+import express from 'express';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
@@ -40,8 +42,16 @@ export class ProductController {
   // ----------------------
   @Post()
   @ApiCreatedResponse({ type: ProductEntity })
-  async create(@Body() createProductDto: CreateProductDto) {
-    const product = await this.productService.create(createProductDto);
+  async create(
+    @Body() createProductDto: CreateProductDto,
+    @Req() req: express.Request,
+  ) {
+    const userId = req.user['id']; // from JwtStrategy
+    const product = await this.productService.create({
+      ...createProductDto,
+      userId,
+    });
+
     return new ProductEntity(product);
   }
 

@@ -9,12 +9,11 @@ import { PrismaClient } from '@prisma/client';
 export class ProductService {
   constructor(private prisma: PrismaService) {}
 
-  create(createProductDto: CreateProductDto) {
+  create(data: CreateProductDto & { userId: number }) {
     return this.prisma.product.create({
-      data: createProductDto,
+      data,
     });
   }
-
   async findAll() {
     return this.prisma.product.findMany({
       where: {

@@ -42,7 +42,7 @@ export class CreateProductDto {
   @ApiProperty()
   categoryId: number;
 
-  @IsNumber()
-  @ApiProperty()
-  userId: number;
+  // @IsNumber()
+  // @ApiProperty()
+  // userId: number;
 }
