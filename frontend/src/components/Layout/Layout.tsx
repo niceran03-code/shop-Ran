@@ -13,22 +13,29 @@ export const Layout = () => {
 
   /**
    * selectedKeys 规则：
-   * - /products        -> 选中 products（高亮 Products）
-   * - /products/create -> 高亮子菜单
-   * - /products/recycle-> 高亮子菜单
-   * - /products/edit/:id -> 选中 products（高亮 Products）
+   * - /products            -> 高亮 Products
+   * - /products/*          -> 高亮子菜单
+   * - /categories          -> 高亮 Categories
+   * - /categories/*        -> 高亮子菜单
    */
   const selectedKeys =
     pathname === "/products" || pathname.startsWith("/products/edit")
       ? ["products"]
+      : pathname === "/categories"
+      ? ["categories"]
       : [pathname];
 
   const [openKeys, setOpenKeys] = useState<string[]>([]);
 
-  // 只有进入子页面才展开
+  // 自动展开 Products / Categories 的子菜单
   useEffect(() => {
     if (pathname.startsWith("/products/") && pathname !== "/products") {
       setOpenKeys(["products"]);
+    } else if (
+      pathname.startsWith("/categories/") &&
+      pathname !== "/categories"
+    ) {
+      setOpenKeys(["categories"]);
     } else {
       setOpenKeys([]);
     }
@@ -50,6 +57,7 @@ export const Layout = () => {
             <Link to="/dashboard">Dashboard</Link>
           </Menu.Item>
 
+          {/* Products */}
           <Menu.SubMenu
             key="products"
             title={
@@ -66,15 +74,29 @@ export const Layout = () => {
             <Menu.Item key="/products/create">
               <Link to="/products/create">Create Product</Link>
             </Menu.Item>
-
             <Menu.Item key="/products/recycle">
               <Link to="/products/recycle">Recycle Bin</Link>
             </Menu.Item>
           </Menu.SubMenu>
 
-          <Menu.Item key="/categories">
-            <Link to="/categories">Categories</Link>
-          </Menu.Item>
+          {/* Categories */}
+          <Menu.SubMenu
+            key="categories"
+            title={
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate("/categories");
+                }}
+              >
+                Categories
+              </span>
+            }
+          >
+            <Menu.Item key="/categories/create">
+              <Link to="/categories/create">Create Category</Link>
+            </Menu.Item>
+          </Menu.SubMenu>
         </Menu>
       </Sider>
 
