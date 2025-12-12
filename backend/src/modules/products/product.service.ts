@@ -152,8 +152,11 @@ export class ProductService {
     name?: string;
     categoryId?: number;
     isActive?: boolean;
+    userId?: number;
+    userName?: string;
   }) {
-    const { page, pageSize, name, categoryId, isActive } = params;
+    const { page, pageSize, name, categoryId, isActive, userId, userName } =
+      params;
 
     const where: any = {
       deletedAt: null,
@@ -174,6 +177,19 @@ export class ProductService {
       where.isActive = isActive;
     }
 
+    if (userId) {
+      where.userId = userId;
+    }
+
+    if (userName) {
+      where.user = {
+        username: {
+          contains: userName,
+          mode: 'insensitive',
+        },
+      };
+    }
+
     const [data, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
@@ -183,7 +199,7 @@ export class ProductService {
           category: true,
           user: true,
         },
-        orderBy: { id: 'desc' },
+        orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       }),
       this.prisma.product.count({ where }),
     ]);

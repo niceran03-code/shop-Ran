@@ -62,6 +62,18 @@ export default function ProductsPage() {
   const categoryIdFromUrl = searchParams.get("category");
 
   // ---------------------------
+  // Draft user filters
+  // ---------------------------
+  const [draftUserId, setDraftUserId] = useState("");
+  const [draftUserName, setDraftUserName] = useState("");
+
+  // ---------------------------
+  // Applied user filters
+  // ---------------------------
+  const [userIdFilter, setUserIdFilter] = useState<number | undefined>();
+  const [userNameFilter, setUserNameFilter] = useState<string | undefined>();
+
+  // ---------------------------
   // Fetch category tree
   // ---------------------------
   const fetchCategories = async () => {
@@ -88,6 +100,7 @@ export default function ProductsPage() {
   // ---------------------------
   // Fetch products（唯一入口）
   // ---------------------------
+  // frontend/src/pages/Products/ProductsPage.tsx
   const fetchProducts = async () => {
     try {
       const res = await api.get("/product", {
@@ -96,13 +109,14 @@ export default function ProductsPage() {
           pageSize,
           name: searchName || undefined,
           categoryId: categoryIdFilter || undefined,
+          userId: userIdFilter,
+          userName: userNameFilter,
         },
       });
 
       setProducts(res.data.data);
       setTotal(res.data.total);
-    } catch (err) {
-      console.error(err);
+    } catch {
       message.error("Failed to load products");
     }
   };
@@ -116,7 +130,14 @@ export default function ProductsPage() {
 
   useEffect(() => {
     fetchProducts();
-  }, [page, pageSize, searchName, categoryIdFilter]);
+  }, [
+    page,
+    pageSize,
+    searchName,
+    categoryIdFilter,
+    userIdFilter,
+    userNameFilter,
+  ]);
 
   useEffect(() => {
     if (categoryIdFromUrl) {
@@ -248,6 +269,19 @@ export default function ProductsPage() {
           value={draftName}
           onChange={(e) => setDraftName(e.target.value)}
         />
+        <Input
+          placeholder="User ID"
+          style={{ width: 140 }}
+          value={draftUserId}
+          onChange={(e) => setDraftUserId(e.target.value)}
+        />
+
+        <Input
+          placeholder="User Name"
+          style={{ width: 180 }}
+          value={draftUserName}
+          onChange={(e) => setDraftUserName(e.target.value)}
+        />
 
         <TreeSelect
           style={{ width: 260 }}
@@ -265,6 +299,10 @@ export default function ProductsPage() {
           onClick={() => {
             setSearchName(draftName);
             setCategoryIdFilter(draftCategoryId);
+
+            setUserIdFilter(draftUserId ? Number(draftUserId) : undefined);
+            setUserNameFilter(draftUserName || undefined);
+
             setPage(1);
           }}
         >

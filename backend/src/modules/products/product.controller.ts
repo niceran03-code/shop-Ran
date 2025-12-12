@@ -65,6 +65,8 @@ export class ProductController {
     @Query('name') name?: string,
     @Query('categoryId') categoryId?: number,
     @Query('isActive') isActive?: string,
+    @Query('userId') userId?: number,
+    @Query('userName') userName?: string,
   ) {
     return this.productService.findWithPagination({
       page: Number(page),
@@ -72,6 +74,8 @@ export class ProductController {
       name,
       categoryId: categoryId ? Number(categoryId) : undefined,
       isActive: isActive === undefined ? undefined : isActive === 'true',
+      userId: userId ? Number(userId) : undefined,
+      userName,
     });
   }
 
