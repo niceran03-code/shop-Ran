@@ -1,6 +1,15 @@
 // frontend/src/pages/Categories/CategoriesPage.tsx
 import { useEffect, useState } from "react";
-import { Table, Button, Space, message, Pagination, Typography } from "antd";
+import {
+  Table,
+  Button,
+  Space,
+  message,
+  Pagination,
+  Typography,
+  Select,
+} from "antd";
+import type { ColumnsType } from "antd/es/table";
 import { useNavigate } from "react-router-dom";
 import api from "../../utils/axios";
 
@@ -13,6 +22,7 @@ export default function CategoriesPage() {
   const pageSize = 5;
 
   const navigate = useNavigate();
+  const totalPages = Math.ceil(total / pageSize);
 
   // ----------------------------------
   // Fetch paginated tree
@@ -35,16 +45,18 @@ export default function CategoriesPage() {
   }, [page]);
 
   // ----------------------------------
-  // Table Columns
+  // Table Columns (match Products fixed/scroll behavior)
   // ----------------------------------
-  const columns = [
+  const columns: ColumnsType<any> = [
     {
       title: "Category Name",
       dataIndex: "name",
+      width: 220,
+      fixed: "left",
       render: (text: string, record: { id: number }) => (
         <Link
           onClick={(e) => {
-            e.stopPropagation(); // ✅ 防止冒泡
+            e.stopPropagation();
             navigate(`/products?category=${record.id}`);
           }}
         >
@@ -53,7 +65,21 @@ export default function CategoriesPage() {
       ),
     },
     {
+      title: "Created At",
+      dataIndex: "createdAt",
+      width: 140,
+      render: (value: string) => (value ? value.slice(0, 10) : "-"),
+    },
+    {
+      title: "Updated At",
+      dataIndex: "updatedAt",
+      width: 140,
+      render: (value: string) => (value ? value.slice(0, 10) : "-"),
+    },
+    {
       title: "Actions",
+      width: 180,
+      fixed: "right",
       render: (record: { id: number }) => (
         <Space>
           <Button
@@ -62,7 +88,6 @@ export default function CategoriesPage() {
           >
             Edit
           </Button>
-
           <Button danger>Delete</Button>
         </Space>
       ),
@@ -84,9 +109,35 @@ export default function CategoriesPage() {
         columns={columns}
         dataSource={categories}
         pagination={false}
+        scroll={{ x: 800 }}
       />
 
-      <div style={{ textAlign: "right", marginTop: 16 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: 12,
+          marginTop: 20,
+          alignItems: "center",
+        }}
+      >
+        {/* Page Select */}
+        <Select
+          value={page}
+          style={{ width: 120 }}
+          onChange={(value) => setPage(value)}
+        >
+          {Array.from({ length: totalPages }).map((_, index) => {
+            const pageNumber = index + 1;
+            return (
+              <Select.Option key={pageNumber} value={pageNumber}>
+                Page {pageNumber}
+              </Select.Option>
+            );
+          })}
+        </Select>
+
+        {/* Pagination */}
         <Pagination
           current={page}
           total={total}

@@ -156,6 +156,37 @@ export class ProductController {
     const product = await this.productService.toggleStatus(id);
     return new ProductEntity(product);
   }
+
+  // ================================
+  // Batch Operations
+  // ================================
+
+  @Post('batch/delete')
+  @ApiOkResponse()
+  batchDelete(@Body('ids') ids: number[]) {
+    return this.productService.batchSoftDelete(ids);
+  }
+
+  @Post('batch/status')
+  @ApiOkResponse()
+  batchUpdateStatus(
+    @Body('ids') ids: number[],
+    @Body('isActive') isActive: boolean,
+  ) {
+    return this.productService.batchUpdateStatus(ids, isActive);
+  }
+
+  @Post('batch/restore')
+  @ApiOkResponse()
+  batchRestore(@Body('ids') ids: number[]) {
+    return this.productService.batchRestore(ids);
+  }
+
+  @Post('batch/force-delete')
+  @ApiOkResponse()
+  batchForceDelete(@Body('ids') ids: number[]) {
+    return this.productService.batchForceDelete(ids);
+  }
   // ----------------------
   // GET ONE BY ID
   // ----------------------

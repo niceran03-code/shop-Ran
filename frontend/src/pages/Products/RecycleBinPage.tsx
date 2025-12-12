@@ -1,3 +1,4 @@
+// frontend/src/pages/Products/RecycleBinPage.tsx
 import { useEffect, useState } from "react";
 import { Table, Button, Space, message, Modal } from "antd";
 import api from "../../utils/axios";
@@ -6,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 export default function RecycleBinPage() {
   const [deletedProducts, setDeletedProducts] = useState([]);
   const navigate = useNavigate();
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   // ---------------------------
   // Fetch deleted products
   // ---------------------------
@@ -54,7 +56,36 @@ export default function RecycleBinPage() {
       },
     });
   };
+  const handleBatchRestore = async () => {
+    Modal.confirm({
+      title: "Restore selected products?",
+      content: "Selected products will become active again.",
+      onOk: async () => {
+        await api.post("/product/batch/restore", {
+          ids: selectedRowKeys,
+        });
+        message.success("Products restored");
+        setSelectedRowKeys([]);
+        fetchDeletedProducts();
+      },
+    });
+  };
 
+  const handleBatchForceDelete = () => {
+    Modal.confirm({
+      title: "Delete selected products permanently?",
+      content: "This action cannot be undone.",
+      okType: "danger",
+      onOk: async () => {
+        await api.post("/product/batch/force-delete", {
+          ids: selectedRowKeys,
+        });
+        message.success("Products permanently deleted");
+        setSelectedRowKeys([]);
+        fetchDeletedProducts();
+      },
+    });
+  };
   // ---------------------------
   // Permanently Delete Product
   // ---------------------------
@@ -88,8 +119,15 @@ export default function RecycleBinPage() {
   // Table
   // ---------------------------
   const columns = [
-    { title: "Product Name", dataIndex: "name" },
-    { title: "Deleted At", dataIndex: "deletedAt" },
+    {
+      title: "Product Name",
+      dataIndex: "name",
+    },
+    {
+      title: "Deleted At",
+      dataIndex: "deletedAt",
+      render: (value: string) => (value ? value.slice(0, 10) : "-"),
+    },
     {
       title: "Actions",
       render: (record: any) => (
@@ -97,7 +135,6 @@ export default function RecycleBinPage() {
           <Button type="primary" onClick={() => restoreProduct(record.id)}>
             Restore
           </Button>
-
           <Button danger onClick={() => forceDeleteProduct(record.id)}>
             Delete Forever
           </Button>
@@ -116,8 +153,31 @@ export default function RecycleBinPage() {
       </Button>
       <h2>Recycle Bin</h2>
 
+      {selectedRowKeys.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            marginBottom: 16,
+            flexWrap: "wrap",
+          }}
+        >
+          <Button type="primary" onClick={handleBatchRestore}>
+            Batch Restore
+          </Button>
+
+          <Button danger onClick={handleBatchForceDelete}>
+            Permanently Delete
+          </Button>
+        </div>
+      )}
+
       <Table
         rowKey="id"
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys) => setSelectedRowKeys(keys as number[]),
+        }}
         columns={columns}
         dataSource={deletedProducts}
         pagination={{ pageSize: 10 }}

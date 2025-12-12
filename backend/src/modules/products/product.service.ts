@@ -211,4 +211,39 @@ export class ProductService {
       pageSize,
     };
   }
+  async batchSoftDelete(ids: number[]) {
+    return this.prisma.product.updateMany({
+      where: { id: { in: ids } },
+      data: {
+        deletedAt: new Date(),
+        isActive: false,
+      },
+    });
+  }
+
+  async batchUpdateStatus(ids: number[], isActive: boolean) {
+    return this.prisma.product.updateMany({
+      where: {
+        id: { in: ids },
+        deletedAt: null,
+      },
+      data: { isActive },
+    });
+  }
+
+  async batchRestore(ids: number[]) {
+    return this.prisma.product.updateMany({
+      where: { id: { in: ids } },
+      data: {
+        deletedAt: null,
+        isActive: true,
+      },
+    });
+  }
+
+  async batchForceDelete(ids: number[]) {
+    return this.prisma.product.deleteMany({
+      where: { id: { in: ids } },
+    });
+  }
 }

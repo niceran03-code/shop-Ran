@@ -11,6 +11,7 @@ import {
   Input,
   TreeSelect,
   Switch,
+  Select,
 } from "antd";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../../utils/axios";
@@ -33,7 +34,8 @@ export default function ProductsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
-
+  const totalPages = Math.ceil(total / pageSize);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   // ---------------------------
   // Data
   // ---------------------------
@@ -202,6 +204,32 @@ export default function ProductsPage() {
     }
   };
 
+  const handleBatchDelete = () => {
+    Modal.confirm({
+      title: "Delete selected products?",
+      content: "Selected products will be moved to the recycle bin.",
+      okType: "danger",
+      onOk: async () => {
+        await api.post("/product/batch/delete", {
+          ids: selectedRowKeys,
+        });
+        message.success("Products deleted");
+        setSelectedRowKeys([]);
+        fetchProducts();
+      },
+    });
+  };
+
+  const handleBatchStatus = async (isActive: boolean) => {
+    await api.post("/product/batch/status", {
+      ids: selectedRowKeys,
+      isActive,
+    });
+    message.success(isActive ? "Products published" : "Products unpublished");
+    setSelectedRowKeys([]);
+    fetchProducts();
+  };
+
   // ---------------------------
   // Table columns（⭐ 自适应保留 ⭐）
   // ---------------------------
@@ -211,6 +239,7 @@ export default function ProductsPage() {
 
     { title: "Price", dataIndex: "price", responsive: ["md"] },
     { title: "Stock", dataIndex: "stock", responsive: ["md"] },
+
     {
       title: "Status",
       dataIndex: "isActive",
@@ -224,32 +253,44 @@ export default function ProductsPage() {
     },
 
     {
+      title: "Created At",
+      dataIndex: "createdAt",
+      responsive: ["lg"],
+      render: (value: string) => (value ? value.slice(0, 10) : "-"),
+    },
+    {
+      title: "Updated At",
+      dataIndex: "updatedAt",
+      responsive: ["lg"],
+      render: (value: string) => (value ? value.slice(0, 10) : "-"),
+    },
+
+    {
       title: "Category",
       dataIndex: ["category", "name"],
-      responsive: ["lg"],
+      responsive: ["xl"],
     },
     {
       title: "Created By",
       dataIndex: ["user", "username"],
-      responsive: ["lg"],
+      responsive: ["xl"],
     },
     {
       title: "Description",
       dataIndex: "description",
       ellipsis: true,
-      responsive: ["xl"],
+      responsive: ["xxl"],
     },
-    {
-      title: "Deleted At",
-      dataIndex: "deletedAt",
-      responsive: ["xl"],
-    },
+
     {
       title: "Actions",
       fixed: "right",
       render: (record) => (
         <Space>
-          <Button onClick={() => navigate(`/products/edit/${record.id}`)}>
+          <Button
+            type="primary"
+            onClick={() => navigate(`/products/edit/${record.id}`)}
+          >
             Edit
           </Button>
           <Button danger onClick={() => deleteProduct(record.id)}>
@@ -270,6 +311,31 @@ export default function ProductsPage() {
       >
         Create Product
       </Button>
+
+      {selectedRowKeys.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            marginBottom: 16,
+            flexWrap: "wrap",
+          }}
+        >
+          {" "}
+          <Button danger onClick={handleBatchDelete}>
+            {" "}
+            Batch Delete{" "}
+          </Button>{" "}
+          <Button onClick={() => handleBatchStatus(true)}>
+            {" "}
+            Batch Publish{" "}
+          </Button>{" "}
+          <Button onClick={() => handleBatchStatus(false)}>
+            {" "}
+            Batch Unpublish{" "}
+          </Button>{" "}
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div
@@ -331,6 +397,10 @@ export default function ProductsPage() {
       {/* Table */}
       <Table
         rowKey="id"
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys) => setSelectedRowKeys(keys as number[]),
+        }}
         columns={columns}
         dataSource={products}
         pagination={false}
@@ -344,8 +414,10 @@ export default function ProductsPage() {
           justifyContent: "flex-end",
           gap: 12,
           marginTop: 20,
+          alignItems: "center",
         }}
       >
+        {/* Recycle Bin */}
         <Tooltip title="Recycle Bin">
           <Button
             shape="circle"
@@ -354,6 +426,23 @@ export default function ProductsPage() {
           />
         </Tooltip>
 
+        {/* Page Select */}
+        <Select
+          value={page}
+          style={{ width: 120 }}
+          onChange={(value) => setPage(value)}
+        >
+          {Array.from({ length: totalPages }).map((_, index) => {
+            const pageNumber = index + 1;
+            return (
+              <Select.Option key={pageNumber} value={pageNumber}>
+                Page {pageNumber}
+              </Select.Option>
+            );
+          })}
+        </Select>
+
+        {/* Pagination */}
         <Pagination
           current={page}
           pageSize={pageSize}
