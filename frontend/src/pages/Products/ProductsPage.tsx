@@ -1,3 +1,4 @@
+// frontend/src/pages/Products/ProductsPage.tsx
 import { useEffect, useState } from "react";
 import {
   Table,
@@ -23,6 +24,8 @@ export default function ProductsPage() {
   // State
   // ---------------------------
   const [products, setProducts] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
 
   // 搜索字段
   const [searchId, setSearchId] = useState("");
@@ -38,8 +41,15 @@ export default function ProductsPage() {
   // ---------------------------
   const fetchProducts = async () => {
     try {
-      const res = await api.get("/product");
-      setProducts(res.data);
+      const res = await api.get("/product", {
+        params: {
+          page,
+          pageSize,
+        },
+      });
+
+      setProducts(res.data.data); // 给 Table 的数组
+      setTotal(res.data.total); //  给 Pagination 用
     } catch (err) {
       console.error(err);
       message.error("Failed to load products");
@@ -48,7 +58,7 @@ export default function ProductsPage() {
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [page, pageSize]);
 
   // ---------------------------
   // 搜索产品
@@ -242,9 +252,12 @@ export default function ProductsPage() {
 
         <Pagination
           current={page}
-          total={products.length}
-          pageSize={10}
-          onChange={(p) => setPage(p)}
+          total={total}
+          pageSize={pageSize}
+          onChange={(p, ps) => {
+            setPage(p);
+            setPageSize(ps);
+          }}
         />
       </div>
     </div>

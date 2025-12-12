@@ -37,6 +37,14 @@ export class CategoryController {
     return this.categoryService.create(dto);
   }
 
+  @Get('simple')
+  @ApiOkResponse({
+    description: 'Simple category list for dropdown',
+  })
+  findSimpleList() {
+    return this.categoryService.findSimpleList();
+  }
+
   @Get()
   @ApiOkResponse({ type: CategoryEntity, isArray: true })
   findAll() {

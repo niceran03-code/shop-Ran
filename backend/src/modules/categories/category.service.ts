@@ -115,4 +115,18 @@ export class CategoryService {
       total,
     };
   }
+
+  // backend/src/modules/categories/category.service.ts
+
+  async findSimpleList() {
+    return this.prisma.category.findMany({
+      select: {
+        id: true,
+        name: true,
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    });
+  }
 }

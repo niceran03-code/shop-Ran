@@ -1,3 +1,4 @@
+// backend/src/modules/products/product.controller.ts
 import {
   Controller,
   Get,
@@ -58,8 +59,20 @@ export class ProductController {
   // ----------------------
   @Get()
   @ApiOkResponse({ type: ProductEntity, isArray: true })
-  findAll() {
-    return this.productService.findAll();
+  async findAll(
+    @Query('page') page = 1,
+    @Query('pageSize') pageSize = 10,
+    @Query('name') name?: string,
+    @Query('categoryId') categoryId?: number,
+    @Query('isActive') isActive?: string,
+  ) {
+    return this.productService.findWithPagination({
+      page: Number(page),
+      pageSize: Number(pageSize),
+      name,
+      categoryId: categoryId ? Number(categoryId) : undefined,
+      isActive: isActive === undefined ? undefined : isActive === 'true',
+    });
   }
 
   // ----------------------
@@ -127,21 +140,6 @@ export class ProductController {
   forceDelete(@Param('id', ParseIntPipe) id: number) {
     //  新增：真正 delete
     return this.productService.forceDelete(id);
-  }
-
-  @Get('search')
-  async searchProducts(
-    @Query('id') id?: number,
-    @Query('name') name?: string,
-    @Query('category') category?: number,
-    @Query('subCategory') subCategory?: number,
-  ) {
-    return this.productService.search({
-      id: id ? Number(id) : undefined,
-      name,
-      categoryId: category ? Number(category) : undefined,
-      subCategoryId: subCategory ? Number(subCategory) : undefined,
-    });
   }
 
   // ----------------------

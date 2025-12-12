@@ -1,3 +1,4 @@
+// frontend/src/routes/index.tsx
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { RegisterPage } from "../pages/Register/RegisterPage";
 import DashboardPage from "../pages/Dashboard/DashbosrdPage";

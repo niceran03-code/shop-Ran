@@ -1,28 +1,49 @@
-import { useEffect } from "react";
+// frontend/src/pages/Products/ProductsForm.tsx
+import { useEffect, useState } from "react";
 import { Form, Input, InputNumber, Button, message, Select } from "antd";
-import axios from "axios";
+import api from "../../utils/axios";
+
+interface Category {
+  id: number;
+  name: string;
+}
 
 interface ProductFormProps {
-  initialData?: any; // 编辑模式的数据
+  initialData?: any;
   onSubmit: (values: any) => Promise<void>;
 }
 
 export const ProductsForm = ({ initialData, onSubmit }: ProductFormProps) => {
   const [form] = Form.useForm();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
 
+  // Load category dropdown data
+  useEffect(() => {
+    const fetchCategories = async () => {
+      setLoadingCategories(true);
+      try {
+        const res = await api.get("/categories/simple");
+        setCategories(res.data);
+      } catch {
+        message.error("Failed to load categories");
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
+
+  // Fill form in edit mode
   useEffect(() => {
     if (initialData) {
       form.setFieldsValue(initialData);
     }
-  }, [initialData]);
+  }, [initialData, form]);
 
   const handleFinish = async (values: any) => {
-    try {
-      await onSubmit(values);
-      message.success("Saved successfully!");
-    } catch (err) {
-      message.error("Failed to save");
-    }
+    await onSubmit(values);
   };
 
   return (
@@ -45,15 +66,30 @@ export const ProductsForm = ({ initialData, onSubmit }: ProductFormProps) => {
         name="price"
         rules={[{ required: true, message: "Please enter price" }]}
       >
-        <InputNumber
-          min={0}
-          style={{ width: "100%" }}
-          placeholder="Enter price"
-        />
+        <InputNumber min={0} style={{ width: "100%" }} />
       </Form.Item>
 
-      <Form.Item label="Description" name="description">
-        <Input.TextArea rows={3} placeholder="Product description" />
+      <Form.Item
+        label="Stock"
+        name="stock"
+        rules={[{ required: true, message: "Please enter stock quantity" }]}
+      >
+        <InputNumber min={0} style={{ width: "100%" }} />
+      </Form.Item>
+
+      <Form.Item
+        label="Category"
+        name="categoryId"
+        rules={[{ required: true, message: "Please select a category" }]}
+      >
+        <Select
+          loading={loadingCategories}
+          placeholder="Select category"
+          options={categories.map((c) => ({
+            label: c.name,
+            value: c.id,
+          }))}
+        />
       </Form.Item>
 
       <Form.Item

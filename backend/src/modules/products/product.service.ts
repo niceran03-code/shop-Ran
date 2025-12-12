@@ -100,4 +100,54 @@ export class ProductService {
       },
     });
   }
+
+  async findWithPagination(params: {
+    page: number;
+    pageSize: number;
+    name?: string;
+    categoryId?: number;
+    isActive?: boolean;
+  }) {
+    const { page, pageSize, name, categoryId, isActive } = params;
+
+    const where: any = {
+      deletedAt: null,
+    };
+
+    if (name) {
+      where.name = {
+        contains: name,
+        mode: 'insensitive',
+      };
+    }
+
+    if (categoryId) {
+      where.categoryId = categoryId;
+    }
+
+    if (isActive !== undefined) {
+      where.isActive = isActive;
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          category: true,
+          user: true,
+        },
+        orderBy: { id: 'desc' },
+      }),
+      this.prisma.product.count({ where }),
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      pageSize,
+    };
+  }
 }

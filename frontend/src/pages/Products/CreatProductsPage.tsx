@@ -1,24 +1,24 @@
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
+// frontend/src/pages/Products/CreatProductsPage.tsx
 import { ProductsForm } from "./ProductsForm";
+import api from "../../utils/axios";
+import { useNavigate } from "react-router-dom";
+import { message } from "antd";
 
-export default function CreateProductPage() {
+const CreateProductsPage = () => {
   const navigate = useNavigate();
 
-  const createProduct = async (values: any) => {
-    const token = localStorage.getItem("accessToken");
-
-    await axios.post("http://localhost:3000/product", values, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
+  const handleCreate = async (values: any) => {
+    await api.post("/product", values);
+    message.success("Product created successfully");
     navigate("/products");
   };
 
   return (
     <div>
       <h2>Create Product</h2>
-      <ProductsForm onSubmit={createProduct} />
+      <ProductsForm onSubmit={handleCreate} />
     </div>
   );
-}
+};
+
+export default CreateProductsPage;
