@@ -10,6 +10,7 @@ import {
   Pagination,
   Input,
   TreeSelect,
+  Switch,
 } from "antd";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../../utils/axios";
@@ -150,6 +151,19 @@ export default function ProductsPage() {
   };
 
   // ---------------------------
+  // Toggle product status
+  // ---------------------------
+  const toggleStatus = async (id: number) => {
+    try {
+      await api.patch(`/product/${id}/status`);
+      message.success("Status updated");
+      fetchProducts(); // ⭐ 关键：刷新当前列表
+    } catch {
+      message.error("Failed to update status");
+    }
+  };
+
+  // ---------------------------
   // Table columns（⭐ 自适应保留 ⭐）
   // ---------------------------
   const columns: ColumnsType<any> = [
@@ -161,9 +175,15 @@ export default function ProductsPage() {
     {
       title: "Status",
       dataIndex: "isActive",
-      render: (v) => (v ? "Active" : "Inactive"),
       responsive: ["md"],
+      render: (_: any, record: any) => (
+        <Switch
+          checked={record.isActive}
+          onChange={() => toggleStatus(record.id)}
+        />
+      ),
     },
+
     {
       title: "Category",
       dataIndex: ["category", "name"],
