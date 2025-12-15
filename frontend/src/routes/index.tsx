@@ -13,15 +13,12 @@ import RecycleBinPage from "../pages/Products/RecycleBinPage";
 import CreateCategoryPage from "../pages/Categories/CreateCategoryPage";
 import EditCategoryPage from "../pages/Categories/EditCategoryPage";
 import UsersPage from "../pages/Users/UsersPage";
+import AuthPage from "../pages/Auth/AuthPage";
 
 export const router = createBrowserRouter([
   {
-    path: "/login",
-    element: <LoginPage />,
-  },
-  {
-    path: "/register",
-    element: <RegisterPage />,
+    path: "/auth",
+    element: <AuthPage />,
   },
 
   {
