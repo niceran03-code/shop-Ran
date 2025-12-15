@@ -6,6 +6,7 @@ import LoginForm from "./LoginForm";
 import RegisterForm from "./RegisterForm";
 import styles from "./AuthPage.module.css";
 
+// 登录/注册页：卡片切换登录与注册表单
 export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
 

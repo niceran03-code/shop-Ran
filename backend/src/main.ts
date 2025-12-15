@@ -7,6 +7,7 @@ import { PrismaClientExceptionFilter } from './common/filters/prisma-client-exce
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 
+// 应用入口：配置全局校验/序列化、Swagger、静态资源和 Prisma 异常过滤器
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     cors: true,

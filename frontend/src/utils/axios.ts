@@ -5,7 +5,7 @@ const api = axios.create({
   baseURL: "http://localhost:3000",
 });
 
-// 请求拦截器，加 token
+// Axios 实例：附带 Bearer token，401 时尝试刷新后重放请求
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("accessToken");
   if (token) {
@@ -40,7 +40,8 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (e) {
         localStorage.clear();
-        window.location.href = "/login";
+        // 当前认证页路由为 /auth
+        window.location.href = "/auth";
       }
     }
 

@@ -4,6 +4,7 @@ import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 
+// 基于自定义 @Roles 装饰器的简单角色守卫
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}

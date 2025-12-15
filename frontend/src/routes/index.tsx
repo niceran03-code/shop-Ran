@@ -13,6 +13,7 @@ import EditCategoryPage from "../pages/Categories/EditCategoryPage";
 import UsersPage from "../pages/Users/UsersPage";
 import AuthPage from "../pages/Auth/AuthPage";
 
+// 应用路由：/auth 为公开登录注册，其余路径由 ProtectedRoute 保护并加载后台布局
 export const router = createBrowserRouter([
   {
     path: "/auth",

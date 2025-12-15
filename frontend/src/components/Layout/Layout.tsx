@@ -4,6 +4,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import styles from "./Layout.module.css";
 
+// 后台主框架：左侧菜单 + 顶部退出 + Outlet 渲染子页面
 const { Header, Sider, Content } = AntLayout;
 
 export const Layout = () => {
@@ -115,7 +116,7 @@ export const Layout = () => {
               className={styles.logout}
               onClick={() => {
                 localStorage.clear();
-                window.location.href = "/login";
+                navigate("/auth", { replace: true });
               }}
             >
               Logout

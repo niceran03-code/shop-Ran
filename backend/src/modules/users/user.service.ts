@@ -9,6 +9,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcrypt';
 
+// 用户服务：处理创建/更新/删除并校验角色与关联约束
 export const roundsOfHashing = 10;
 
 @Injectable()

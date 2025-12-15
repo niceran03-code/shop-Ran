@@ -5,6 +5,7 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PrismaClient } from '@prisma/client';
 
+// 商品服务：创建、查询、分页、软删/恢复、批量操作等业务逻辑
 @Injectable()
 export class ProductService {
   constructor(private prisma: PrismaService) {}

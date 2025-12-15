@@ -4,6 +4,7 @@ import { message } from "antd";
 import api from "../../utils/axios";
 import styles from "./DashboardPage.module.css";
 
+// 仪表盘：获取汇总统计与 7 天趋势，使用 Recharts 展示
 import {
   ResponsiveContainer,
   LineChart,

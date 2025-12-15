@@ -8,6 +8,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
+// 分类服务：树形查询、唯一约束处理、分页树与基础 CRUD
 @Injectable()
 export class CategoryService {
   constructor(private prisma: PrismaService) {}

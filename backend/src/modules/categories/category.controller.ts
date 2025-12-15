@@ -24,6 +24,7 @@ import {
 } from '@nestjs/swagger';
 import { CategoryEntity } from './entities/category.entity';
 
+// 分类控制器：授权后提供分类 CRUD、树形分页与简易列表
 @Controller('categories')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()

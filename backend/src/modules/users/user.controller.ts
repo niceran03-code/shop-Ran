@@ -30,6 +30,7 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import * as currentUserDto from './dto/current-user.dto';
 
+// 用户控制器：仅 ADMIN 访问，提供分页查询、详情、更新、删除
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
 @Controller('users')
