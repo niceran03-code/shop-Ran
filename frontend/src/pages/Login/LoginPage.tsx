@@ -25,10 +25,16 @@ export default function LoginPage() {
     try {
       const res = await api.post("/auth/login", values);
 
-      const { accessToken, refreshToken } = res.data;
+      const { accessToken, refreshToken, user } = res.data;
 
+      // ✅ 保存 token
       localStorage.setItem("accessToken", accessToken);
       localStorage.setItem("refreshToken", refreshToken);
+
+      // ✅ 关键：保存当前登录用户信息
+      localStorage.setItem("userId", String(user.id));
+      localStorage.setItem("userRole", user.role);
+      localStorage.setItem("username", user.username);
 
       message.success("Login successful!");
 

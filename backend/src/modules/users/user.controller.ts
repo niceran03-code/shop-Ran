@@ -11,7 +11,9 @@ import {
   Post,
   Query,
   UseGuards,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { UsersService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -26,6 +28,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
+import * as currentUserDto from './dto/current-user.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
@@ -39,15 +42,14 @@ export class UsersController {
   async create(@Body() createUserDto: CreateUserDto) {
     return new UserEntity(await this.usersService.create(createUserDto));
   }
+
   @Get()
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   async findAll(@Query('page') page = 1, @Query('pageSize') pageSize = 10) {
     return this.usersService.findWithPagination(+page, +pageSize);
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOkResponse({ type: UserEntity })
   async findOne(@Param('id', ParseIntPipe) id: number) {
@@ -61,18 +63,17 @@ export class UsersController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOkResponse({ type: UserEntity })
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateUserDto: UpdateUserDto,
+    @currentUserDto.CurrentUser() user: currentUserDto.JwtUserPayload,
   ) {
-    return new UserEntity(await this.usersService.update(id, updateUserDto));
+    return new UserEntity(
+      await this.usersService.update(id, updateUserDto, user.userId),
+    );
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOkResponse({ type: UserEntity })
   async remove(@Param('id', ParseIntPipe) id: number) {

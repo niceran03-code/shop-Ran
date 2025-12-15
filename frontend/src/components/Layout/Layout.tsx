@@ -60,6 +60,10 @@ export const Layout = () => {
             <Link to="/dashboard">Dashboard</Link>
           </Menu.Item>
 
+          <Menu.Item key="/users">
+            <Link to="/users">Users</Link>
+          </Menu.Item>
+
           {/* Products */}
           <Menu.SubMenu
             key="products"
@@ -100,11 +104,6 @@ export const Layout = () => {
               <Link to="/categories/create">Create Category</Link>
             </Menu.Item>
           </Menu.SubMenu>
-
-          {/* ✅ Users（新增顶级菜单项） */}
-          <Menu.Item key="/users">
-            <Link to="/users">Users</Link>
-          </Menu.Item>
         </Menu>
       </Sider>
 

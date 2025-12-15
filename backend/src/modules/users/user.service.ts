@@ -1,5 +1,9 @@
 // backend/src/modules/users/user.service.ts
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -21,23 +25,36 @@ export class UsersService {
     return this.prisma.user.create({ data: createUserDto });
   }
 
-  findAll() {
-    return this.prisma.user.findMany();
-  }
-
   findOne(id: number) {
     return this.prisma.user.findUnique({ where: { id } });
   }
 
-  async update(id: number, updateUserDto: UpdateUserDto) {
+  async update(
+    targetUserId: number,
+    updateUserDto: UpdateUserDto,
+    currentUserId: number,
+  ) {
+    //  禁止修改自己的 role
+    if (updateUserDto.role && targetUserId === currentUserId) {
+      throw new ForbiddenException(
+        'You are not allowed to change your own role',
+      );
+    }
+
+    // 处理密码
     if (updateUserDto.password) {
       updateUserDto.password = await bcrypt.hash(
         updateUserDto.password,
         roundsOfHashing,
       );
     }
-    return this.prisma.user.update({ where: { id }, data: updateUserDto });
+
+    return this.prisma.user.update({
+      where: { id: targetUserId },
+      data: updateUserDto,
+    });
   }
+
   async findWithPagination(page: number, pageSize: number) {
     const [data, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({
