@@ -1,0 +1,53 @@
+.logo {
+  height: 48px;
+  margin: 16px;
+  color: white;
+  font-size: 18px;
+  text-align: center;
+  line-height: 48px;
+  font-weight: bold;
+}
+
+.header {
+  background: #fff;
+  padding: 0 24px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.headerRight {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.logout {
+  border: none;
+  background: #ff4d4f;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.logout:hover {
+  background: #ff7875;
+}
+
+.content {
+  margin: 24px;
+  padding: 24px;
+  background: #fff;
+  min-height: 360px;
+  border-radius: 8px;
+}
+
+/* 让 SubMenu（例如 Products）在选中时也像 Menu.Item 一样整行高亮 */
+:global(
+    .ant-menu-dark.ant-menu-inline
+      .ant-menu-submenu-selected
+      > .ant-menu-submenu-title
+  ) {
+  background: #1677ff;
+}

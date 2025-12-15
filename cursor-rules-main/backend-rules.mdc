@@ -1,0 +1,1713 @@
+---
+description: Backend development rules
+globs:
+alwaysApply: false
+---
+# Cursor Rules - 后端技术栈规范
+
+## NestJS开发规范
+
+### 项目结构
+
+```bash
+src/
+├── modules/             # 功能模块
+│   ├── auth/            # 认证模块
+│   │   ├── auth.controller.ts
+│   │   ├── auth.service.ts
+│   │   ├── auth.module.ts
+│   │   ├── dto/
+│   │   ├── guards/
+│   │   └── strategies/
+│   ├── users/          # 用户模块
+│   └── products/       # 产品模块
+├── common/             # 公共代码
+│   ├── decorators/     # 自定义装饰器
+│   ├── filters/        # 异常过滤器
+│   ├── guards/         # 守卫
+│   ├── interceptors/   # 拦截器
+│   └── pipes/          # 管道
+├── config/             # 配置文件
+├── prisma/             # Prisma配置和Schema
+│   ├── schema.prisma   # 数据库Schema定义
+│   ├── migrations/     # 数据库迁移文件
+│   ├── seed.ts         # 数据库种子文件
+│   └── client/         # 生成的Prisma Client
+└── main.ts             # 应用入口
+
+```
+
+### 模块设计规范
+
+- 每个功能模块独立成目录
+- 模块必须包含controller、service、dto、entity
+- 使用依赖注入管理服务
+- 实现模块间的松耦合
+
+## RESTful API设计规范
+
+### 资源命名规范
+
+- 使用名词复数形式表示资源集合
+- 使用小写字母和连字符分隔单词
+- 避免使用动词，使用HTTP方法表示操作
+
+```typescript
+// ✅ 正确的资源命名
+GET    /api/products          // 获取产品列表
+GET    /api/products/123      // 获取特定产品
+POST   /api/products          // 创建新产品
+PUT    /api/products/123      // 更新产品
+DELETE /api/products/123      // 删除产品
+
+// ❌ 错误的资源命名
+GET    /api/getProducts
+POST   /api/createProduct
+PUT    /api/updateProduct
+DELETE /api/deleteProduct
+```
+
+### HTTP方法使用规范
+
+- `GET`: 获取资源（幂等）
+- `POST`: 创建资源
+- `PUT`: 更新资源（幂等，完整更新）
+- `PATCH`: 部分更新资源
+- `DELETE`: 删除资源（幂等）
+
+### 嵌套资源规范
+
+```typescript
+// 嵌套资源API示例
+GET    /api/products/123/reviews          // 获取产品的所有评论
+GET    /api/products/123/reviews/456      // 获取产品的特定评论
+POST   /api/products/123/reviews          // 为产品添加评论
+PUT    /api/products/123/reviews/456      // 更新产品评论
+DELETE /api/products/123/reviews/456      // 删除产品评论
+
+// 控制器实现
+@Controller('products/:productId/reviews')
+export class ProductReviewsController {
+  @Get()
+  async findAll(@Param('productId') productId: string) {
+    // 获取产品的所有评论
+  }
+
+  @Get(':id')
+  async findOne(@Param('productId') productId: string, @Param('id') id: string) {
+    // 获取产品的特定评论
+  }
+
+  @Post()
+  async create(
+    @Param('productId') productId: string,
+    @Body() createReviewDto: CreateReviewDto
+  ) {
+    // 为产品添加评论
+  }
+}
+```
+
+### 查询参数规范
+
+```typescript
+// 分页参数
+GET /api/products?page=1&limit=10
+
+// 排序参数
+GET /api/products?sort=name&order=asc
+GET /api/products?sort=price&order=desc
+
+// 过滤参数
+GET /api/products?category=electronics&price_min=100&price_max=500
+
+// 搜索参数
+GET /api/products?search=iphone
+
+// 字段选择
+GET /api/products?fields=id,name,price
+
+// 包含关联数据
+GET /api/products?include=category,variants,reviews
+```
+
+### HTTP状态码使用规范
+
+```typescript
+// 成功响应
+200 OK                    // 请求成功
+201 Created              // 资源创建成功
+204 No Content           // 请求成功但无返回内容
+
+// 客户端错误
+400 Bad Request          // 请求参数错误
+401 Unauthorized         // 未认证
+403 Forbidden            // 无权限
+404 Not Found            // 资源不存在
+409 Conflict             // 资源冲突
+422 Unprocessable Entity // 请求格式正确但语义错误
+
+// 服务器错误
+500 Internal Server Error // 服务器内部错误
+502 Bad Gateway          // 网关错误
+503 Service Unavailable   // 服务不可用
+
+// 状态码使用示例
+@Post()
+@HttpCode(HttpStatus.CREATED)
+async create(@Body() createProductDto: CreateProductDto) {
+  return this.productsService.create(createProductDto);
+}
+
+@Delete(':id')
+@HttpCode(HttpStatus.NO_CONTENT)
+async remove(@Param('id') id: string) {
+  await this.productsService.remove(id);
+}
+```
+
+### 统一响应格式
+
+```typescript
+// 成功响应格式
+interface SuccessResponse<T> {
+  success: true;
+  data: T;
+  message?: string;
+  meta?: {
+    page?: number;
+    limit?: number;
+    total?: number;
+    totalPages?: number;
+  };
+}
+
+// 错误响应格式
+interface ErrorResponse {
+  success: false;
+  error: {
+    code: string;
+    message: string;
+    details?: Record<string, any>;
+  };
+  timestamp: string;
+  path: string;
+  requestId: string;
+}
+
+// 响应拦截器实现
+@Injectable()
+export class ResponseInterceptor implements NestInterceptor {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    return next.handle().pipe(
+      map(data => ({
+        success: true,
+        data,
+        timestamp: new Date().toISOString(),
+      }))
+    );
+  }
+}
+```
+
+### API版本控制
+
+```typescript
+// URL版本控制
+@Controller('v1/products')
+export class ProductsV1Controller {
+  // V1版本API
+}
+
+@Controller('v2/products')
+export class ProductsV2Controller {
+  // V2版本API
+}
+
+// 请求头版本控制
+@Controller('products')
+export class ProductsController {
+  @Get()
+  async findAll(@Headers('api-version') version: string) {
+    if (version === 'v2') {
+      return this.productsService.findAllV2();
+    }
+    return this.productsService.findAllV1();
+  }
+}
+```
+
+### 批量操作规范
+
+```typescript
+// 批量创建
+POST /api/products/batch
+{
+  "products": [
+    { "name": "Product 1", "price": 100 },
+    { "name": "Product 2", "price": 200 }
+  ]
+}
+
+// 批量更新
+PUT /api/products/batch
+{
+  "updates": [
+    { "id": "1", "price": 150 },
+    { "id": "2", "price": 250 }
+  ]
+}
+
+// 批量删除
+DELETE /api/products/batch
+{
+  "ids": ["1", "2", "3"]
+}
+```
+
+### 文件上传规范
+
+```typescript
+// 单文件上传
+POST /api/products/:id/image
+Content-Type: multipart/form-data
+
+// 多文件上传
+POST /api/products/:id/images
+Content-Type: multipart/form-data
+
+// 文件上传控制器
+@Post(':id/images')
+@UseInterceptors(FilesInterceptor('files', 5))
+async uploadImages(
+  @Param('id') id: string,
+  @UploadedFiles() files: Express.Multer.File[]
+) {
+  return this.productsService.uploadImages(id, files);
+}
+```
+
+### 搜索和过滤规范
+
+```typescript
+// 高级搜索
+GET /api/products/search?q=iphone&category=electronics&price_range=100-500
+
+// 全文搜索
+GET /api/products/search?q=iphone&type=fulltext
+
+// 地理位置搜索
+GET /api/stores/search?lat=40.7128&lng=-74.0060&radius=10
+
+// 搜索控制器
+@Get('search')
+async search(@Query() searchDto: ProductSearchDto) {
+  return this.productsService.search(searchDto);
+}
+```
+
+### HTTP缓存控制规范
+
+```typescript
+// 缓存控制头
+@Get(':id')
+@Header('Cache-Control', 'public, max-age=3600')
+async findOne(@Param('id') id: string) {
+  return this.productsService.findOne(id);
+}
+
+// ETag支持
+@Get(':id')
+async findOne(@Param('id') id: string, @Res() res: Response) {
+  const product = await this.productsService.findOne(id);
+  const etag = generateETag(product);
+  
+  if (res.req.headers['if-none-match'] === etag) {
+    return res.status(304).send();
+  }
+  
+  res.setHeader('ETag', etag);
+  return res.json(product);
+}
+```
+
+### API文档规范
+
+```typescript
+// Swagger文档装饰器
+@ApiTags('products')
+@ApiOperation({ summary: 'Get all products with pagination and filters' })
+@ApiResponse({ status: 200, description: 'Products retrieved successfully' })
+@ApiResponse({ status: 400, description: 'Invalid query parameters' })
+@Get()
+async findAll(@Query() query: ProductQueryDto) {
+  return this.productsService.findAll(query);
+}
+
+// 请求参数文档
+@ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
+@ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page' })
+@ApiQuery({ name: 'category', required: false, type: String, description: 'Filter by category' })
+@Get()
+async findAll(@Query() query: ProductQueryDto) {
+  return this.productsService.findAll(query);
+}
+```
+
+### Controller规范示例
+
+```typescript
+// modules/products/products.controller.ts
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ProductsService } from './products.service';
+import { CreateProductDto, UpdateProductDto, ProductQueryDto } from './dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../users/enums/user-role.enum';
+
+@ApiTags('products')
+@Controller('products')
+export class ProductsController {
+  constructor(private readonly productsService: ProductsService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Get all products with pagination and filters' })
+  @ApiResponse({ status: 200, description: 'Products retrieved successfully' })
+  async findAll(@Query() query: ProductQueryDto) {
+    return this.productsService.findAll(query);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get product by ID' })
+  @ApiResponse({ status: 200, description: 'Product found' })
+  @ApiResponse({ status: 404, description: 'Product not found' })
+  async findOne(@Param('id') id: string) {
+    return this.productsService.findOne(id);
+  }
+
+  @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Create a new product' })
+  @ApiResponse({ status: 201, description: 'Product created successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid input data' })
+  async create(@Body() createProductDto: CreateProductDto) {
+    return this.productsService.create(createProductDto);
+  }
+
+  @Put(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Update product by ID' })
+  @ApiResponse({ status: 200, description: 'Product updated successfully' })
+  @ApiResponse({ status: 404, description: 'Product not found' })
+  async update(
+    @Param('id') id: string,
+    @Body() updateProductDto: UpdateProductDto,
+  ) {
+    return this.productsService.update(id, updateProductDto);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete product by ID' })
+  @ApiResponse({ status: 204, description: 'Product deleted successfully' })
+  async remove(@Param('id') id: string) {
+    return this.productsService.remove(id);
+  }
+}
+```
+
+### Service规范示例
+
+```typescript
+// modules/products/products.service.ts
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../../database/prisma.service';
+import { CreateProductDto, UpdateProductDto, ProductQueryDto } from './dto';
+import { Product } from '@prisma/client';
+
+@Injectable()
+export class ProductsService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async findAll(query: ProductQueryDto) {
+    const { page = 1, limit = 10, category, search, sortBy, sortOrder } = query;
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    
+    if (category) {
+      where.category = category;
+    }
+    
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [products, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { [sortBy || 'createdAt']: sortOrder || 'desc' },
+        include: {
+          category: true,
+          variants: true,
+        },
+      }),
+      this.prisma.product.count({ where }),
+    ]);
+
+    return {
+      data: products,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async findOne(id: string): Promise<Product> {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: {
+        category: true,
+        variants: true,
+        reviews: {
+          include: {
+            user: {
+              select: { id: true, name: true, avatar: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product with ID ${id} not found`);
+    }
+
+    return product;
+  }
+
+  async create(createProductDto: CreateProductDto): Promise<Product> {
+    try {
+      return await this.prisma.product.create({
+        data: {
+          ...createProductDto,
+          variants: {
+            create: createProductDto.variants,
+          },
+        },
+        include: {
+          category: true,
+          variants: true,
+        },
+      });
+    } catch (error) {
+      if (error.code === 'P2002') {
+        throw new BadRequestException('Product with this name already exists');
+      }
+      throw error;
+    }
+  }
+
+  async update(id: string, updateProductDto: UpdateProductDto): Promise<Product> {
+    await this.findOne(id); // Verify product exists
+
+    try {
+      return await this.prisma.product.update({
+        where: { id },
+        data: updateProductDto,
+        include: {
+          category: true,
+          variants: true,
+        },
+      });
+    } catch (error) {
+      if (error.code === 'P2002') {
+        throw new BadRequestException('Product with this name already exists');
+      }
+      throw error;
+    }
+  }
+
+  async remove(id: string): Promise<void> {
+    await this.findOne(id); // Verify product exists
+    
+    await this.prisma.product.delete({
+      where: { id },
+    });
+  }
+}
+```
+
+### DTO规范示例
+
+```typescript
+// modules/products/dto/create-product.dto.ts
+import { IsString, IsNumber, IsOptional, IsArray, IsEnum, Min, MaxLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
+
+export class CreateProductDto {
+  @ApiProperty({ description: 'Product name', example: 'iPhone 15 Pro' })
+  @IsString()
+  @MaxLength(100)
+  name: string;
+
+  @ApiProperty({ description: 'Product description' })
+  @IsString()
+  @MaxLength(1000)
+  description: string;
+
+  @ApiProperty({ description: 'Product price', example: 999.99 })
+  @IsNumber()
+  @Min(0)
+  @Transform(({ value }) => parseFloat(value))
+  price: number;
+
+  @ApiProperty({ description: 'Product category', enum: ['electronics', 'clothing', 'books'] })
+  @IsEnum(['electronics', 'clothing', 'books'])
+  category: string;
+
+  @ApiPropertyOptional({ description: 'Product images', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  images?: string[];
+
+  @ApiPropertyOptional({ description: 'Product variants' })
+  @IsOptional()
+  @IsArray()
+  variants?: CreateProductVariantDto[];
+}
+
+export class CreateProductVariantDto {
+  @IsString()
+  name: string;
+
+  @IsNumber()
+  @Min(0)
+  price: number;
+
+  @IsNumber()
+  @Min(0)
+  stock: number;
+}
+```
+
+## 数据库操作规范
+
+### Prisma使用规范
+
+- 使用Prisma Client进行数据库操作
+- 定义清晰的Schema关系
+- 使用事务确保数据一致性
+- 实现数据库迁移管理
+
+### Prisma Schema规范
+
+```prisma
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+  // 可选：自定义输出路径
+  // output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql" // 或 "mysql", "sqlite", "sqlserver"
+  url      = env("DATABASE_URL")
+  // 可选：指定数据库名称
+  // directUrl = env("DIRECT_URL") // 用于直接连接（如Vercel）
+}
+
+// 用户模型
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String   // 加密存储
+  role      UserRole @default(CUSTOMER)
+  avatar    String?
+  isActive  Boolean  @default(true)
+  emailVerified Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 关系定义
+  orders    Order[]
+  reviews   Review[]
+  addresses Address[]
+  sessions  Session[]
+
+  // 索引优化
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+// 产品模型
+model Product {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique // URL友好的标识符
+  description String   @db.Text
+  price       Decimal  @db.Decimal(10, 2)
+  comparePrice Decimal? @db.Decimal(10, 2) // 原价，用于显示折扣
+  categoryId  String
+  images      String[] // 图片URL数组
+  isActive    Boolean  @default(true)
+  isFeatured  Boolean  @default(false)
+  stock       Int      @default(0)
+  sku         String?  @unique // 库存单位
+  weight      Decimal? @db.Decimal(8, 2)
+  dimensions  Json?    // 长宽高信息
+  tags        String[] // 标签数组
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关系定义
+  category   Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  variants   ProductVariant[]
+  reviews    Review[]
+  orderItems OrderItem[]
+
+  // 索引优化
+  @@index([categoryId])
+  @@index([isActive])
+  @@index([isFeatured])
+  @@index([slug])
+  @@map("products")
+}
+
+// 分类模型
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?  @db.Text
+  image       String?
+  parentId    String?  // 支持层级分类
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关系定义
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+  products Product[]
+
+  // 索引优化
+  @@index([parentId])
+  @@index([isActive])
+  @@index([sortOrder])
+  @@map("categories")
+}
+
+// 产品变体模型
+model ProductVariant {
+  id        String @id @default(cuid())
+  name      String
+  sku       String? @unique
+  price     Decimal @db.Decimal(10, 2)
+  comparePrice Decimal? @db.Decimal(10, 2)
+  stock     Int
+  productId String
+  attributes Json? // 变体属性，如颜色、尺寸等
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 关系定义
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  // 索引优化
+  @@index([productId])
+  @@index([sku])
+  @@map("product_variants")
+}
+
+// 订单模型
+model Order {
+  id            String      @id @default(cuid())
+  orderNumber   String      @unique // 订单号
+  userId        String
+  status        OrderStatus @default(PENDING)
+  totalAmount   Decimal     @db.Decimal(10, 2)
+  subtotal      Decimal     @db.Decimal(10, 2)
+  taxAmount     Decimal     @db.Decimal(10, 2)
+  shippingAmount Decimal    @db.Decimal(10, 2)
+  discountAmount Decimal    @db.Decimal(10, 2) @default(0)
+  shippingAddressId String?
+  billingAddressId  String?
+  notes         String?     @db.Text
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // 关系定义
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     OrderItem[]
+  payments  Payment[]
+  shippingAddress Address? @relation("ShippingAddress", fields: [shippingAddressId], references: [id])
+  billingAddress  Address? @relation("BillingAddress", fields: [billingAddressId], references: [id])
+
+  // 索引优化
+  @@index([userId])
+  @@index([status])
+  @@index([orderNumber])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+// 订单项模型
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String
+  productId String
+  variantId String?
+  quantity  Int
+  price     Decimal @db.Decimal(10, 2)
+  total     Decimal @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+
+  // 关系定义
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+  variant ProductVariant? @relation(fields: [variantId], references: [id])
+
+  // 索引优化
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+// 评论模型
+model Review {
+  id        String @id @default(cuid())
+  userId    String
+  productId String
+  rating    Int
+  title     String?
+  comment   String? @db.Text
+  isVerified Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 关系定义
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  // 约束：每个用户对每个产品只能有一条评论
+  @@unique([userId, productId])
+  @@index([productId])
+  @@index([rating])
+  @@map("reviews")
+}
+
+// 地址模型
+model Address {
+  id          String @id @default(cuid())
+  userId      String
+  type        AddressType
+  firstName   String
+  lastName    String
+  company     String?
+  address1    String
+  address2    String?
+  city        String
+  state       String
+  postalCode  String
+  country     String @default("US")
+  phone       String?
+  isDefault   Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关系定义
+  user           User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shippingOrders Order[] @relation("ShippingAddress")
+  billingOrders  Order[] @relation("BillingAddress")
+
+  // 索引优化
+  @@index([userId])
+  @@index([type])
+  @@map("addresses")
+}
+
+// 支付模型
+model Payment {
+  id        String        @id @default(cuid())
+  orderId   String
+  amount    Decimal       @db.Decimal(10, 2)
+  method    PaymentMethod
+  status    PaymentStatus @default(PENDING)
+  gateway   String?       // 支付网关名称
+  gatewayId String?       // 网关返回的ID
+  gatewayData Json?       // 网关返回的完整数据
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  // 关系定义
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // 索引优化
+  @@index([orderId])
+  @@index([status])
+  @@index([gatewayId])
+  @@map("payments")
+}
+
+// 会话模型（用于JWT刷新）
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  // 关系定义
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 索引优化
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// 枚举定义
+enum UserRole {
+  ADMIN
+  MANAGER
+  CUSTOMER
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  PAYPAL
+  BANK_TRANSFER
+  CRYPTO
+}
+
+enum AddressType {
+  SHIPPING
+  BILLING
+}
+```
+
+### Prisma Seed规范
+
+```typescript
+// prisma/seed.ts
+import { PrismaClient } from '@prisma/client';
+import { hash } from 'bcrypt';
+
+const prisma = new PrismaClient();
+
+async function main() {
+  console.log('开始数据库种子数据初始化...');
+
+  // 清理现有数据（可选）
+  await cleanup();
+
+  // 创建管理员用户
+  const adminPassword = await hash('admin123', 12);
+  const admin = await prisma.user.upsert({
+    where: { email: 'admin@example.com' },
+    update: {},
+    create: {
+      email: 'admin@example.com',
+      name: '系统管理员',
+      password: adminPassword,
+      role: 'ADMIN',
+      emailVerified: true,
+    },
+  });
+
+  // 创建测试用户
+  const userPassword = await hash('user123', 12);
+  const user = await prisma.user.upsert({
+    where: { email: 'user@example.com' },
+    update: {},
+    create: {
+      email: 'user@example.com',
+      name: '测试用户',
+      password: userPassword,
+      role: 'CUSTOMER',
+      emailVerified: true,
+    },
+  });
+
+  // 创建产品分类
+  const electronicsCategory = await prisma.category.upsert({
+    where: { slug: 'electronics' },
+    update: {},
+    create: {
+      name: '电子产品',
+      slug: 'electronics',
+      description: '各种电子产品，包括手机、电脑、配件等',
+      sortOrder: 1,
+    },
+  });
+
+  const clothingCategory = await prisma.category.upsert({
+    where: { slug: 'clothing' },
+    update: {},
+    create: {
+      name: '服装',
+      slug: 'clothing',
+      description: '时尚服装和配饰',
+      sortOrder: 2,
+    },
+  });
+
+  // 创建产品
+  const products = await Promise.all([
+    prisma.product.upsert({
+      where: { slug: 'iphone-15-pro' },
+      update: {},
+      create: {
+        name: 'iPhone 15 Pro',
+        slug: 'iphone-15-pro',
+        description: '最新款iPhone，搭载A17 Pro芯片，钛金属机身',
+        price: 999.99,
+        comparePrice: 1099.99,
+        categoryId: electronicsCategory.id,
+        images: [
+          'https://example.com/iphone-15-pro-1.jpg',
+          'https://example.com/iphone-15-pro-2.jpg',
+        ],
+        stock: 50,
+        sku: 'IPHONE-15-PRO-256',
+        weight: 187.0,
+        dimensions: { length: 147.6, width: 71.6, height: 8.25 },
+        tags: ['手机', '苹果', '5G'],
+        isFeatured: true,
+      },
+    }),
+    prisma.product.upsert({
+      where: { slug: 'macbook-pro-14' },
+      update: {},
+      create: {
+        name: 'MacBook Pro 14"',
+        slug: 'macbook-pro-14',
+        description: '专业级笔记本电脑，M3 Pro芯片',
+        price: 1999.99,
+        comparePrice: 2199.99,
+        categoryId: electronicsCategory.id,
+        images: [
+          'https://example.com/macbook-pro-1.jpg',
+          'https://example.com/macbook-pro-2.jpg',
+        ],
+        stock: 25,
+        sku: 'MBP-14-M3-PRO-512',
+        weight: 1600.0,
+        dimensions: { length: 312.6, width: 221.2, height: 15.5 },
+        tags: ['笔记本', '苹果', '专业'],
+        isFeatured: true,
+      },
+    }),
+  ]);
+
+  // 创建产品变体
+  await Promise.all([
+    prisma.productVariant.create({
+      data: {
+        name: '256GB 深空黑色',
+        sku: 'IPHONE-15-PRO-256-BLACK',
+        price: 999.99,
+        stock: 20,
+        productId: products[0].id,
+        attributes: { storage: '256GB', color: '深空黑色' },
+      },
+    }),
+    prisma.productVariant.create({
+      data: {
+        name: '512GB 原色钛金属',
+        sku: 'IPHONE-15-PRO-512-TITANIUM',
+        price: 1199.99,
+        stock: 15,
+        productId: products[0].id,
+        attributes: { storage: '512GB', color: '原色钛金属' },
+      },
+    }),
+  ]);
+
+  // 创建用户地址
+  await prisma.address.create({
+    data: {
+      userId: user.id,
+      type: 'SHIPPING',
+      firstName: '张',
+      lastName: '三',
+      address1: '北京市朝阳区某某街道123号',
+      city: '北京',
+      state: '北京',
+      postalCode: '100000',
+      country: 'CN',
+      phone: '+86 138 0000 0000',
+      isDefault: true,
+    },
+  });
+
+  console.log('数据库种子数据初始化完成！');
+  console.log(`创建了 ${products.length} 个产品`);
+  console.log(`创建了管理员用户: ${admin.email}`);
+  console.log(`创建了测试用户: ${user.email}`);
+}
+
+async function cleanup() {
+  // 按依赖关系顺序删除数据
+  await prisma.payment.deleteMany();
+  await prisma.orderItem.deleteMany();
+  await prisma.order.deleteMany();
+  await prisma.review.deleteMany();
+  await prisma.productVariant.deleteMany();
+  await prisma.product.deleteMany();
+  await prisma.category.deleteMany();
+  await prisma.address.deleteMany();
+  await prisma.session.deleteMany();
+  await prisma.user.deleteMany();
+}
+
+main()
+  .catch((e) => {
+    console.error('种子数据初始化失败:', e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
+```
+
+### 数据库迁移规范
+
+```bash
+# 1. 生成迁移文件
+npx prisma migrate dev --name init
+
+# 2. 应用迁移到数据库
+npx prisma migrate deploy
+
+# 3. 重置数据库（开发环境）
+npx prisma migrate reset
+
+# 4. 查看迁移历史
+npx prisma migrate status
+
+# 5. 生成Prisma Client
+npx prisma generate
+
+# 6. 运行种子数据
+npx prisma db seed
+```
+
+### package.json配置
+
+```json
+{
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:reset": "prisma migrate reset",
+    "db:migrate:status": "prisma migrate status",
+    "db:seed": "prisma db seed",
+    "db:studio": "prisma studio"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  }
+}
+```
+
+### 环境变量配置
+
+```env
+# .env
+DATABASE_URL="postgresql://username:password@localhost:5432/database_name"
+DIRECT_URL="postgresql://username:password@localhost:5432/database_name"
+
+# 开发环境
+DATABASE_URL="postgresql://dev_user:dev_password@localhost:5432/dev_db"
+
+# 测试环境
+DATABASE_URL="postgresql://test_user:test_password@localhost:5432/test_db"
+
+# 生产环境
+DATABASE_URL="postgresql://prod_user:prod_password@prod_host:5432/prod_db"
+```
+
+### Prisma Schema示例
+
+```prisma
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      UserRole @default(CUSTOMER)
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  orders    Order[]
+  reviews   Review[]
+  addresses Address[]
+
+  @@map("users")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String
+  price       Decimal  @db.Decimal(10, 2)
+  categoryId  String
+  images      String[]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  category   Category         @relation(fields: [categoryId], references: [id])
+  variants   ProductVariant[]
+  reviews    Review[]
+  orderItems OrderItem[]
+
+  @@map("products")
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  image       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  products Product[]
+
+  @@map("categories")
+}
+
+model ProductVariant {
+  id        String @id @default(cuid())
+  name      String
+  price     Decimal @db.Decimal(10, 2)
+  stock     Int
+  productId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("product_variants")
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  userId        String
+  status        OrderStatus @default(PENDING)
+  totalAmount   Decimal     @db.Decimal(10, 2)
+  shippingAddress Address?
+  billingAddress  Address?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // Relations
+  user      User        @relation(fields: [userId], references: [id])
+  items     OrderItem[]
+  payments  Payment[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String
+  productId String
+  quantity  Int
+  price     Decimal @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+
+  // Relations
+  order   Order   @relation(fields: [orderId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+model Review {
+  id        String @id @default(cuid())
+  userId    String
+  productId String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([userId, productId])
+  @@map("reviews")
+}
+
+model Address {
+  id          String @id @default(cuid())
+  userId      String
+  type        AddressType
+  firstName   String
+  lastName    String
+  company     String?
+  address1    String
+  address2    String?
+  city        String
+  state       String
+  postalCode  String
+  country     String
+  phone       String?
+  isDefault   Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user           User    @relation(fields: [userId], references: [id])
+  shippingOrders Order[] @relation("ShippingAddress")
+  billingOrders  Order[] @relation("BillingAddress")
+
+  @@map("addresses")
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  orderId   String
+  amount    Decimal       @db.Decimal(10, 2)
+  method    PaymentMethod
+  status    PaymentStatus @default(PENDING)
+  gateway   String?
+  gatewayId String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  // Relations
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("payments")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  CUSTOMER
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  PAYPAL
+  BANK_TRANSFER
+}
+
+enum AddressType {
+  SHIPPING
+  BILLING
+}
+```
+
+### 查询优化示例
+
+```typescript
+// services/products.service.ts
+export class ProductsService {
+  // 避免N+1查询问题
+  async findProductsWithCategory() {
+    return this.prisma.product.findMany({
+      include: {
+        category: true,
+        variants: true,
+        reviews: {
+          include: {
+            user: {
+              select: { id: true, name: true },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // 使用分页查询
+  async findProductsPaginated(page: number, limit: number) {
+    const skip = (page - 1) * limit;
+    
+    const [products, total] = await Promise.all([
+      this.prisma.product.findMany({
+        skip,
+        take: limit,
+        include: { category: true },
+      }),
+      this.prisma.product.count(),
+    ]);
+
+    return {
+      data: products,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  // 使用事务确保数据一致性
+  async createProductWithVariants(data: CreateProductDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const product = await tx.product.create({
+        data: {
+          name: data.name,
+          description: data.description,
+          price: data.price,
+          categoryId: data.categoryId,
+          images: data.images,
+        },
+      });
+
+      if (data.variants?.length) {
+        await tx.productVariant.createMany({
+          data: data.variants.map(variant => ({
+            ...variant,
+            productId: product.id,
+          })),
+        });
+      }
+
+      return product;
+    });
+  }
+}
+```
+
+## 中间件使用规范
+
+### 全局中间件示例
+
+```typescript
+// common/middleware/logger.middleware.ts
+import { Injectable, NestMiddleware } from '@nestjs/common';
+import { Request, Response, NextFunction } from 'express';
+import { Logger } from '@nestjs/common';
+
+@Injectable()
+export class LoggerMiddleware implements NestMiddleware {
+  private readonly logger = new Logger('HTTP');
+
+  use(req: Request, res: Response, next: NextFunction) {
+    const { method, originalUrl, ip } = req;
+    const userAgent = req.get('User-Agent') || '';
+    const startTime = Date.now();
+
+    res.on('finish', () => {
+      const { statusCode } = res;
+      const contentLength = res.get('content-length');
+      const responseTime = Date.now() - startTime;
+
+      this.logger.log(
+        `${method} ${originalUrl} ${statusCode} ${contentLength} - ${userAgent} ${ip} - ${responseTime}ms`,
+      );
+    });
+
+    next();
+  }
+}
+
+// app.module.ts
+export class AppModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(LoggerMiddleware)
+      .forRoutes('*');
+  }
+}
+```
+
+### 自定义中间件示例
+
+```typescript
+// common/middleware/request-id.middleware.ts
+import { Injectable, NestMiddleware } from '@nestjs/common';
+import { Request, Response, NextFunction } from 'express';
+import { v4 as uuidv4 } from 'uuid';
+
+@Injectable()
+export class RequestIdMiddleware implements NestMiddleware {
+  use(req: Request, res: Response, next: NextFunction) {
+    const requestId = req.headers['x-request-id'] as string || uuidv4();
+    
+    req['requestId'] = requestId;
+    res.setHeader('x-request-id', requestId);
+    
+    next();
+  }
+}
+```
+
+## 异常处理规范
+
+### 自定义异常过滤器
+
+```typescript
+// common/filters/http-exception.filter.ts
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
+import { Request, Response } from 'express';
+import { Logger } from '@nestjs/common';
+
+@Catch()
+export class HttpExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
+
+  catch(exception: unknown, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
+
+    const status =
+      exception instanceof HttpException
+        ? exception.getStatus()
+        : HttpStatus.INTERNAL_SERVER_ERROR;
+
+    const message =
+      exception instanceof HttpException
+        ? exception.getResponse()
+        : 'Internal server error';
+
+    const errorResponse = {
+      success: false,
+      error: {
+        code: status,
+        message: typeof message === 'string' ? message : (message as any).message,
+        timestamp: new Date().toISOString(),
+        path: request.url,
+        method: request.method,
+        requestId: request['requestId'],
+      },
+    };
+
+    this.logger.error(
+      `${request.method} ${request.url} - ${status} - ${JSON.stringify(errorResponse)}`,
+      exception instanceof Error ? exception.stack : '',
+    );
+
+    response.status(status).json(errorResponse);
+  }
+}
+```
+
+## 缓存策略规范
+
+### Redis缓存服务
+
+```typescript
+// services/cache.service.ts
+import { Injectable, Inject } from '@nestjs/common';
+import { Redis } from 'ioredis';
+
+@Injectable()
+export class CacheService {
+  constructor(
+    @Inject('REDIS_CLIENT')
+    private readonly redis: Redis,
+  ) {}
+
+  async get<T>(key: string): Promise<T | null> {
+    const value = await this.redis.get(key);
+    return value ? JSON.parse(value) : null;
+  }
+
+  async set(key: string, value: any, ttl?: number): Promise<void> {
+    const serializedValue = JSON.stringify(value);
+    if (ttl) {
+      await this.redis.setex(key, ttl, serializedValue);
+    } else {
+      await this.redis.set(key, serializedValue);
+    }
+  }
+
+  async del(key: string): Promise<void> {
+    await this.redis.del(key);
+  }
+
+  async delPattern(pattern: string): Promise<void> {
+    const keys = await this.redis.keys(pattern);
+    if (keys.length > 0) {
+      await this.redis.del(...keys);
+    }
+  }
+
+  // Cache with automatic invalidation
+  async getOrSet<T>(
+    key: string,
+    factory: () => Promise<T>,
+    ttl: number = 3600,
+  ): Promise<T> {
+    const cached = await this.get<T>(key);
+    if (cached !== null) {
+      return cached;
+    }
+
+    const fresh = await factory();
+    await this.set(key, fresh, ttl);
+    return fresh;
+  }
+}
+```
+
+### 缓存装饰器
+
+```typescript
+// common/decorators/cache.decorator.ts
+import { SetMetadata } from '@nestjs/common';
+
+export const CACHE_KEY_METADATA = 'cache_key_metadata';
+export const CACHE_TTL_METADATA = 'cache_ttl_metadata';
+
+export const CacheKey = (key: string) => SetMetadata(CACHE_KEY_METADATA, key);
+export const CacheTTL = (ttl: number) => SetMetadata(CACHE_TTL_METADATA, ttl);
+
+// 使用示例
+@Get(':id')
+@CacheKey('product')
+@CacheTTL(3600)
+async findOne(@Param('id') id: string) {
+  return this.productsService.findOne(id);
+}
+```
+
+## 配置管理规范
+
+### 环境配置
+
+```typescript
+// config/configuration.ts
+export default () => ({
+  port: parseInt(process.env.PORT, 10) || 3000,
+  database: {
+    url: process.env.DATABASE_URL,
+    pool: {
+      min: parseInt(process.env.DB_POOL_MIN, 10) || 2,
+      max: parseInt(process.env.DB_POOL_MAX, 10) || 10,
+    },
+  },
+  redis: {
+    url: process.env.REDIS_URL,
+    ttl: parseInt(process.env.REDIS_TTL, 10) || 3600,
+  },
+  jwt: {
+    secret: process.env.JWT_SECRET,
+    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  },
+  aws: {
+    region: process.env.AWS_REGION,
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    s3: {
+      bucket: process.env.AWS_S3_BUCKET,
+    },
+  },
+  cors: {
+    origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'],
+    credentials: true,
+  },
+});
+
+// config/database.config.ts
+import { registerAs } from '@nestjs/config';
+
+export default registerAs('database', () => ({
+  url: process.env.DATABASE_URL,
+  pool: {
+    min: parseInt(process.env.DB_POOL_MIN, 10) || 2,
+    max: parseInt(process.env.DB_POOL_MAX, 10) || 10,
+    idleTimeoutMillis: 30000,
+  },
+}));
+```

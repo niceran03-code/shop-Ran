@@ -1,0 +1,1274 @@
+---
+description: BigCommerce Catalyst development rules
+globs:
+alwaysApply: false
+---
+
+# BigCommerce Catalyst 开发指南
+
+Catalyst 是 BigCommerce 的下一代主题开发平台，基于现代 Web 技术栈构建，提供更好的开发体验和性能。
+
+## 核心概念
+
+### 什么是 Catalyst
+
+Catalyst 是 BigCommerce 的新一代主题开发框架，使用现代前端技术栈：
+
+- **构建工具**: Next.js (App Router)
+- **框架**: React 18
+- **样式**: CSS Modules, Tailwind CSS
+- **状态管理**: Zustand
+- **类型检查**: TypeScript
+- **测试**: Vitest
+- **包管理器**: pnpm (强制要求)
+- **Monorepo 管理**: Turborepo + pnpm Workspaces
+
+### 与 Cornerstone 的区别
+
+- 使用 React 替代 Handlebars 模板
+- 基于 Next.js App Router 的现代化路由
+- 支持 TypeScript
+- 更好的组件化开发
+- 现代化的状态管理
+- 更好的开发体验和热重载
+- 使用 monorepo 结构，便于维护和扩展
+
+## 项目创建和初始化
+
+### 前置要求
+
+1. **Node.js**: 版本 18 或更高
+2. **pnpm**: 强制使用 pnpm 作为包管理器
+3. **BigCommerce 开发者账户**: 需要有效的 BigCommerce 开发者账户
+
+### 创建新的 Catalyst 项目
+
+根据 [Catalyst 官方文档](https://www.catalyst.dev/docs/installation)，推荐使用官方 CLI 工具创建项目：
+
+#### 使用 Catalyst CLI
+
+```bash
+# 使用官方 Catalyst CLI 创建新项目
+pnpm create @bigcommerce/catalyst@latest
+
+# 按照 CLI 提示完成项目创建
+# CLI 会自动设置开发环境和必要的配置
+```
+
+#### 手动安装方式
+
+如果你更喜欢手动创建项目，可以按照以下步骤：
+
+```bash
+# 1. Fork Catalyst GitHub 仓库
+# 访问 https://github.com/bigcommerce/catalyst 并点击 "Fork"
+
+# 2. 克隆你的 fork
+git clone git@github.com:<YOUR_GITHUB_USERNAME>/<YOUR_FORK_NAME>.git
+cd <YOUR_FORK_NAME>
+
+# 3. 启用 Corepack
+corepack enable
+
+# 4. 安装依赖
+pnpm install
+```
+
+### 项目配置
+
+根据官方文档，Catalyst 使用 monorepo 结构，包含以下主要部分：
+
+- **核心 Next.js 应用**: `/core` 目录
+- **NPM 包**: `/packages` 目录
+- **工具**: 使用 Turborepo 和 pnpm Workspaces
+
+#### 启用 Corepack
+
+```bash
+# 启用 Corepack（Node.js 包管理器管理器）
+corepack enable
+```
+
+#### 设置环境变量
+
+创建 `.env.local` 文件并配置必要的环境变量：
+
+```bash
+# .env.local
+BIGCOMMERCE_STORE_HASH=your-store-hash
+BIGCOMMERCE_ACCESS_TOKEN=your-access-token
+BIGCOMMERCE_CLIENT_ID=your-client-id
+BIGCOMMERCE_CLIENT_SECRET=your-client-secret
+```
+
+#### 可选：复制 VSCode 设置
+
+```bash
+# 复制 VSCode 设置以获得最佳开发体验
+cp .vscode/settings.example.json .vscode/settings.json
+```
+
+### 环境变量配置
+
+根据官方文档，创建 `.env.local` 文件：
+
+```bash
+# .env.local
+BIGCOMMERCE_STORE_HASH=your-store-hash
+BIGCOMMERCE_ACCESS_TOKEN=your-access-token
+BIGCOMMERCE_CLIENT_ID=your-client-id
+BIGCOMMERCE_CLIENT_SECRET=your-client-secret
+```
+
+**注意**: Catalyst 使用 Next.js，环境变量配置遵循 Next.js 的规范。
+
+## 项目结构
+
+根据 [Catalyst 官方文档](https://www.catalyst.dev/docs/installation)，Catalyst 使用 monorepo 结构，包含多个代码库：
+
+```bash
+catalyst/
+├── core/                   # 核心 Next.js 参考应用
+│   ├── app/               # Next.js App Router
+│   ├── components/        # React 组件
+│   ├── lib/              # 工具库
+│   ├── types/            # TypeScript 类型定义
+│   └── package.json      # 核心应用依赖
+├── packages/              # 发布的 NPM 包
+│   ├── catalyst/         # 主要 Catalyst 包
+│   ├── ui/               # UI 组件库
+│   └── utils/            # 工具包
+├── tools/                 # 开发工具
+├── docs/                  # 文档
+├── package.json           # 根目录依赖
+├── pnpm-workspace.yaml    # pnpm 工作区配置
+├── turbo.json            # Turborepo 配置
+└── README.md             # 项目文档
+```
+
+**重要说明**：
+
+- Catalyst 使用 **Turborepo** 和 **pnpm Workspaces** 管理 monorepo
+- 大多数开发者不需要修改这些工具的配置文件
+- 核心开发工作主要在 `/core` 目录中进行
+
+## 开发环境设置
+
+### 安装依赖
+
+```bash
+# 使用 pnpm 安装依赖（强制要求）
+pnpm install
+
+```
+
+### 开发服务器
+
+根据官方文档，启动开发服务器：
+
+```bash
+# 从 monorepo 根目录启动开发服务器
+pnpm run dev
+```
+
+**默认端口配置**：
+
+- Catalyst storefront: `http://localhost:3000`
+
+**注意**: 如果默认端口被占用，Catalyst 会自动使用下一个可用端口。例如，如果 3000 端口被占用，core 应用会在 3001 端口运行。
+
+### 构建和部署
+
+```bash
+# 构建生产版本
+pnpm run build
+
+# 预览构建结果
+pnpm run preview
+
+# 本地测试构建结果
+pnpm run preview -- --port 4173
+```
+
+### 代码质量检查
+
+```bash
+# ESLint 检查
+pnpm run lint
+
+# ESLint 自动修复
+pnpm run lint:fix
+
+# Prettier 格式化
+pnpm run format
+
+# 运行所有检查
+pnpm run check
+```
+
+## React 组件开发
+
+### 基础组件结构
+
+```typescript
+import React from 'react';
+import { useProduct } from '../hooks/useProduct';
+import styles from './ProductCard.module.css';
+
+interface ProductCardProps {
+  productId: string;
+  className?: string;
+  onAddToCart?: (productId: string) => void;
+}
+
+export const ProductCard: React.FC<ProductCardProps> = ({ 
+  productId, 
+  className,
+  onAddToCart 
+}) => {
+  const { product, loading, error } = useProduct(productId);
+
+  const handleAddToCart = () => {
+    if (onAddToCart && product) {
+      onAddToCart(product.id);
+    }
+  };
+
+  if (loading) return <div className={styles.loading}>Loading...</div>;
+  if (error) return <div className={styles.error}>Error: {error.message}</div>;
+  if (!product) return null;
+
+  return (
+    <div className={`${styles.card} ${className}`}>
+      <img 
+        src={product.primary_image?.url_standard} 
+        alt={product.name}
+        className={styles.image}
+      />
+      <div className={styles.content}>
+        <h3 className={styles.title}>{product.name}</h3>
+        <p className={styles.price}>${product.price}</p>
+        <button 
+          onClick={handleAddToCart}
+          className={styles.addToCartButton}
+        >
+          Add to Cart
+        </button>
+      </div>
+    </div>
+  );
+};
+```
+
+### 页面组件
+
+```typescript
+import React from 'react';
+import { ProductList } from '../components/ProductList';
+import { CategoryHeader } from '../components/CategoryHeader';
+import { useCategory } from '../hooks/useCategory';
+
+interface CategoryPageProps {
+  categoryId: string;
+}
+
+export const CategoryPage: React.FC<CategoryPageProps> = ({ categoryId }) => {
+  const { category, loading, error } = useCategory(categoryId);
+
+  if (loading) return <div>Loading category...</div>;
+  if (error) return <div>Error loading category</div>;
+  if (!category) return <div>Category not found</div>;
+
+  return (
+    <div className="category-page">
+      <CategoryHeader category={category} />
+      <ProductList categoryId={categoryId} />
+    </div>
+  );
+};
+```
+
+## 状态管理 (Zustand)
+
+### Store 定义
+
+```typescript
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+interface CartItem {
+  id: string;
+  productId: number;
+  name: string;
+  price: number;
+  quantity: number;
+  image?: string;
+}
+
+interface CartStore {
+  items: CartItem[];
+  totalItems: number;
+  totalPrice: number;
+  addItem: (item: Omit<CartItem, 'id'>) => void;
+  removeItem: (id: string) => void;
+  updateQuantity: (id: string, quantity: number) => void;
+  clearCart: () => void;
+}
+
+export const useCartStore = create<CartStore>()(
+  persist(
+    (set, get) => ({
+      items: [],
+      totalItems: 0,
+      totalPrice: 0,
+      
+      addItem: (item) => {
+        const { items } = get();
+        const existingItem = items.find(i => i.productId === item.productId);
+        
+        if (existingItem) {
+          set((state) => ({
+            items: state.items.map(i => 
+              i.productId === item.productId 
+                ? { ...i, quantity: i.quantity + item.quantity }
+                : i
+            ),
+            totalItems: state.totalItems + item.quantity,
+            totalPrice: state.totalPrice + (item.price * item.quantity)
+          }));
+        } else {
+          const newItem = { ...item, id: `${item.productId}-${Date.now()}` };
+          set((state) => ({
+            items: [...state.items, newItem],
+            totalItems: state.totalItems + item.quantity,
+            totalPrice: state.totalPrice + (item.price * item.quantity)
+          }));
+        }
+      },
+      
+      removeItem: (id) => {
+        set((state) => {
+          const item = state.items.find(i => i.id === id);
+          return {
+            items: state.items.filter(i => i.id !== id),
+            totalItems: state.totalItems - (item?.quantity || 0),
+            totalPrice: state.totalPrice - ((item?.price || 0) * (item?.quantity || 0))
+          };
+        });
+      },
+      
+      updateQuantity: (id, quantity) => {
+        set((state) => {
+          const item = state.items.find(i => i.id === id);
+          if (!item) return state;
+          
+          const quantityDiff = quantity - item.quantity;
+          return {
+            items: state.items.map(i => 
+              i.id === id ? { ...i, quantity } : i
+            ),
+            totalItems: state.totalItems + quantityDiff,
+            totalPrice: state.totalPrice + (item.price * quantityDiff)
+          };
+        });
+      },
+      
+      clearCart: () => set({ items: [], totalItems: 0, totalPrice: 0 }),
+    }),
+    {
+      name: 'cart-storage',
+      partialize: (state) => ({ items: state.items }),
+    }
+  )
+);
+```
+
+### 在组件中使用
+
+```typescript
+import { useCartStore } from '../stores/cartStore';
+
+export const CartIcon: React.FC = () => {
+  const { totalItems, totalPrice } = useCartStore();
+  
+  return (
+    <div className="cart-icon">
+      <span className="cart-count">{totalItems}</span>
+      <span className="cart-total">${totalPrice.toFixed(2)}</span>
+    </div>
+  );
+};
+
+export const AddToCartButton: React.FC<{ product: Product }> = ({ product }) => {
+  const addItem = useCartStore((state) => state.addItem);
+  
+  const handleAddToCart = () => {
+    addItem({
+      productId: product.id,
+      name: product.name,
+      price: product.price,
+      quantity: 1,
+      image: product.primary_image?.url_standard
+    });
+  };
+  
+  return (
+    <button onClick={handleAddToCart} className="add-to-cart-btn">
+      Add to Cart
+    </button>
+  );
+};
+```
+
+## 自定义 Hooks
+
+### 数据获取 Hook
+
+```typescript
+import { useState, useEffect } from 'react';
+import { BigCommerceApiService } from '../utils/api';
+
+interface UseProductOptions {
+  enabled?: boolean;
+  refetchInterval?: number;
+}
+
+export const useProduct = (productId: string, options: UseProductOptions = {}) => {
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchProduct = async () => {
+    if (!options.enabled) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const apiService = new BigCommerceApiService();
+      const data = await apiService.getProduct(parseInt(productId));
+      setProduct(data);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProduct();
+  }, [productId, options.enabled]);
+
+  useEffect(() => {
+    if (!options.refetchInterval) return;
+    
+    const interval = setInterval(fetchProduct, options.refetchInterval);
+    return () => clearInterval(interval);
+  }, [options.refetchInterval]);
+
+  return { 
+    product, 
+    loading, 
+    error, 
+    refetch: fetchProduct 
+  };
+};
+```
+
+### 购物车 Hook
+
+```typescript
+import { useCartStore } from '../stores/cartStore';
+
+export const useCart = () => {
+  const cart = useCartStore();
+  
+  const addToCart = (product: Product, quantity: number = 1) => {
+    cart.addItem({
+      productId: product.id,
+      name: product.name,
+      price: product.price,
+      quantity,
+      image: product.primary_image?.url_standard
+    });
+  };
+  
+  const removeFromCart = (itemId: string) => {
+    cart.removeItem(itemId);
+  };
+  
+  const updateQuantity = (itemId: string, quantity: number) => {
+    cart.updateQuantity(itemId, quantity);
+  };
+  
+  const clearCart = () => {
+    cart.clearCart();
+  };
+  
+  return {
+    items: cart.items,
+    totalItems: cart.totalItems,
+    totalPrice: cart.totalPrice,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+    clearCart
+  };
+};
+```
+
+## 样式开发
+
+### CSS Modules
+
+```css
+/* ProductCard.module.css */
+.card {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.2s ease;
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.image {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.price {
+  font-size: 18px;
+  font-weight: 700;
+  color: #2c5aa0;
+  margin: 0;
+}
+
+.addToCartButton {
+  background: #2c5aa0;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.addToCartButton:hover {
+  background: #1e3f6b;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #666;
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #d32f2f;
+}
+```
+
+### Tailwind CSS
+
+```typescript
+export const Button: React.FC<ButtonProps> = ({ 
+  children, 
+  variant = 'primary',
+  size = 'medium',
+  disabled = false,
+  onClick,
+  className = ''
+}) => {
+  const baseClasses = 'font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2';
+  
+  const variantClasses = {
+    primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500',
+    secondary: 'bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-500',
+    outline: 'border border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-gray-500',
+    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500'
+  };
+  
+  const sizeClasses = {
+    small: 'px-3 py-1.5 text-sm',
+    medium: 'px-4 py-2 text-base',
+    large: 'px-6 py-3 text-lg'
+  };
+  
+  const disabledClasses = disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer';
+  
+  return (
+    <button 
+      className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${disabledClasses} ${className}`}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      {children}
+    </button>
+  );
+};
+```
+
+## BigCommerce API 集成
+
+### API 服务类
+
+```typescript
+// utils/bigcommerce-api.ts
+import axios, { AxiosInstance } from 'axios';
+
+export class BigCommerceApiService {
+  private client: AxiosInstance;
+  private storeHash: string;
+  private accessToken: string;
+
+  constructor() {
+    this.storeHash = import.meta.env.VITE_BIGCOMMERCE_STORE_HASH!;
+    this.accessToken = import.meta.env.VITE_BIGCOMMERCE_ACCESS_TOKEN!;
+
+    this.client = axios.create({
+      baseURL: `https://api.bigcommerce.com/stores/${this.storeHash}`,
+      headers: {
+        'X-Auth-Token': this.accessToken,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      timeout: 10000,
+    });
+
+    // 请求拦截器
+    this.client.interceptors.request.use(
+      (config) => {
+        console.log(`BigCommerce API Request: ${config.method?.toUpperCase()} ${config.url}`);
+        return config;
+      },
+      (error) => {
+        console.error('BigCommerce API Request Error:', error);
+        return Promise.reject(error);
+      }
+    );
+
+    // 响应拦截器
+    this.client.interceptors.response.use(
+      (response) => {
+        console.log(`BigCommerce API Response: ${response.status} ${response.config.url}`);
+        return response;
+      },
+      (error) => {
+        console.error('BigCommerce API Response Error:', error.response?.data || error.message);
+        return Promise.reject(error);
+      }
+    );
+  }
+
+  // 获取产品列表
+  async getProducts(params?: {
+    page?: number;
+    limit?: number;
+    category_id?: number;
+    keyword?: string;
+    sort?: string;
+  }): Promise<Product[]> {
+    const response = await this.client.get('/v3/catalog/products', { params });
+    return response.data.data;
+  }
+
+  // 获取单个产品
+  async getProduct(productId: number): Promise<Product> {
+    const response = await this.client.get(`/v3/catalog/products/${productId}`);
+    return response.data.data;
+  }
+
+  // 获取分类列表
+  async getCategories(params?: {
+    page?: number;
+    limit?: number;
+    parent_id?: number;
+  }): Promise<Category[]> {
+    const response = await this.client.get('/v3/catalog/categories', { params });
+    return response.data.data;
+  }
+
+  // 获取单个分类
+  async getCategory(categoryId: number): Promise<Category> {
+    const response = await this.client.get(`/v3/catalog/categories/${categoryId}`);
+    return response.data.data;
+  }
+
+  // 创建购物车
+  async createCart(cartData: CreateCartRequest): Promise<Cart> {
+    const response = await this.client.post('/v3/carts', cartData);
+    return response.data.data;
+  }
+
+  // 获取购物车
+  async getCart(cartId: string): Promise<Cart> {
+    const response = await this.client.get(`/v3/carts/${cartId}`);
+    return response.data.data;
+  }
+
+  // 添加商品到购物车
+  async addToCart(cartId: string, itemData: AddToCartRequest): Promise<CartItem> {
+    const response = await this.client.post(`/v3/carts/${cartId}/items`, itemData);
+    return response.data.data;
+  }
+}
+```
+
+### GraphQL 查询
+
+```typescript
+// utils/graphql.ts
+import { gql } from '@apollo/client';
+
+export const GET_PRODUCT = gql`
+  query GetProduct($id: ID!) {
+    site {
+      product(entityId: $id) {
+        entityId
+        name
+        description
+        sku
+        prices {
+          price {
+            value
+            currencyCode
+          }
+          retailPrice {
+            value
+            currencyCode
+          }
+        }
+        images {
+          edges {
+            node {
+              url(width: 400)
+              altText
+            }
+          }
+        }
+        variants {
+          edges {
+            node {
+              entityId
+              sku
+              optionValues {
+                edges {
+                  node {
+                    option {
+                      entityId
+                      displayName
+                    }
+                    value
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+export const GET_CATEGORY_PRODUCTS = gql`
+  query GetCategoryProducts($categoryId: ID!, $first: Int!, $after: String) {
+    site {
+      category(entityId: $categoryId) {
+        entityId
+        name
+        products(first: $first, after: $after) {
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+          edges {
+            node {
+              entityId
+              name
+              sku
+              prices {
+                price {
+                  value
+                  currencyCode
+                }
+              }
+              images {
+                edges {
+                  node {
+                    url(width: 300)
+                    altText
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+```
+
+## 测试
+
+### 组件测试
+
+```typescript
+// tests/components/ProductCard.test.tsx
+import { render, screen, fireEvent } from '@testing-library/react';
+import { ProductCard } from '../../src/components/ProductCard';
+
+const mockProduct = {
+  id: 1,
+  name: 'Test Product',
+  sku: 'TEST-001',
+  price: 99.99,
+  primary_image: {
+    url_standard: '/test-image.jpg',
+    alt_text: 'Test Product Image'
+  }
+};
+
+describe('ProductCard', () => {
+  it('renders product information correctly', () => {
+    const mockAddToCart = jest.fn();
+    
+    render(
+      <ProductCard 
+        productId="1" 
+        onAddToCart={mockAddToCart}
+      />
+    );
+    
+    expect(screen.getByText('Test Product')).toBeInTheDocument();
+    expect(screen.getByText('$99.99')).toBeInTheDocument();
+    expect(screen.getByAltText('Test Product Image')).toBeInTheDocument();
+  });
+
+  it('calls onAddToCart when add to cart button is clicked', () => {
+    const mockAddToCart = jest.fn();
+    
+    render(
+      <ProductCard 
+        productId="1" 
+        onAddToCart={mockAddToCart}
+      />
+    );
+    
+    const addToCartButton = screen.getByText('Add to Cart');
+    fireEvent.click(addToCartButton);
+    
+    expect(mockAddToCart).toHaveBeenCalledWith('1');
+  });
+
+  it('shows loading state', () => {
+    render(<ProductCard productId="1" />);
+    
+    expect(screen.getByText('Loading...')).toBeInTheDocument();
+  });
+
+  it('shows error state', () => {
+    // Mock the useProduct hook to return an error
+    jest.mock('../../src/hooks/useProduct', () => ({
+      useProduct: () => ({
+        product: null,
+        loading: false,
+        error: new Error('Failed to load product')
+      })
+    }));
+    
+    render(<ProductCard productId="1" />);
+    
+    expect(screen.getByText(/Error:/)).toBeInTheDocument();
+  });
+});
+```
+
+### Hook 测试
+
+```typescript
+// tests/hooks/useProduct.test.ts
+import { renderHook, waitFor } from '@testing-library/react';
+import { useProduct } from '../../src/hooks/useProduct';
+
+// Mock the BigCommerce API service
+jest.mock('../../src/utils/api', () => ({
+  BigCommerceApiService: jest.fn().mockImplementation(() => ({
+    getProduct: jest.fn()
+  }))
+}));
+
+describe('useProduct', () => {
+  it('fetches product data successfully', async () => {
+    const mockProduct = {
+      id: 1,
+      name: 'Test Product',
+      price: 99.99
+    };
+
+    const { BigCommerceApiService } = require('../../src/utils/api');
+    const mockGetProduct = jest.fn().mockResolvedValue(mockProduct);
+    BigCommerceApiService.mockImplementation(() => ({
+      getProduct: mockGetProduct
+    }));
+
+    const { result } = renderHook(() => useProduct('1'));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.product).toEqual(mockProduct);
+    expect(result.current.error).toBeNull();
+  });
+
+  it('handles error when fetching product fails', async () => {
+    const mockError = new Error('Failed to fetch product');
+
+    const { BigCommerceApiService } = require('../../src/utils/api');
+    const mockGetProduct = jest.fn().mockRejectedValue(mockError);
+    BigCommerceApiService.mockImplementation(() => ({
+      getProduct: mockGetProduct
+    }));
+
+    const { result } = renderHook(() => useProduct('1'));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.product).toBeNull();
+    expect(result.current.error).toEqual(mockError);
+  });
+});
+```
+
+## 性能优化
+
+### 代码分割
+
+```typescript
+import { lazy, Suspense } from 'react';
+
+// 懒加载页面组件
+const ProductList = lazy(() => import('./ProductList'));
+const ProductDetail = lazy(() => import('./ProductDetail'));
+const Checkout = lazy(() => import('./Checkout'));
+
+export const CategoryPage: React.FC = () => {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ProductList />
+    </Suspense>
+  );
+};
+
+export const ProductPage: React.FC = () => {
+  return (
+    <Suspense fallback={<div>Loading product...</div>}>
+      <ProductDetail />
+    </Suspense>
+  );
+};
+```
+
+### 记忆化组件
+
+```typescript
+import React, { memo, useMemo } from 'react';
+
+interface ProductCardProps {
+  product: Product;
+  onAddToCart: (productId: number) => void;
+}
+
+export const ProductCard = memo<ProductCardProps>(({ product, onAddToCart }) => {
+  const formattedPrice = useMemo(() => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(product.price);
+  }, [product.price]);
+
+  const handleAddToCart = () => {
+    onAddToCart(product.id);
+  };
+
+  return (
+    <div className="product-card">
+      <img src={product.primary_image?.url_standard} alt={product.name} />
+      <h3>{product.name}</h3>
+      <p>{formattedPrice}</p>
+      <button onClick={handleAddToCart}>Add to Cart</button>
+    </div>
+  );
+});
+
+ProductCard.displayName = 'ProductCard';
+```
+
+### 图片优化
+
+```typescript
+import React from 'react';
+
+interface OptimizedImageProps {
+  src: string;
+  alt: string;
+  width?: number;
+  height?: number;
+  className?: string;
+}
+
+export const OptimizedImage: React.FC<OptimizedImageProps> = ({
+  src,
+  alt,
+  width = 400,
+  height,
+  className
+}) => {
+  // 使用 BigCommerce 的图片优化服务
+  const optimizedSrc = `${src}?w=${width}${height ? `&h=${height}` : ''}&fmt=webp`;
+  
+  return (
+    <img
+      src={optimizedSrc}
+      alt={alt}
+      width={width}
+      height={height}
+      className={className}
+      loading="lazy"
+      decoding="async"
+    />
+  );
+};
+```
+
+## 部署
+
+### Vite 构建配置
+
+```typescript
+// vite.config.ts
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { resolve } from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, 'src'),
+      '@components': resolve(__dirname, 'src/components'),
+      '@pages': resolve(__dirname, 'src/pages'),
+      '@hooks': resolve(__dirname, 'src/hooks'),
+      '@stores': resolve(__dirname, 'src/stores'),
+      '@utils': resolve(__dirname, 'src/utils'),
+      '@types': resolve(__dirname, 'src/types'),
+      '@styles': resolve(__dirname, 'src/styles'),
+    },
+  },
+  
+  build: {
+    outDir: 'dist',
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          ui: ['@bigcommerce/big-design'],
+          utils: ['zustand', 'axios'],
+        },
+      },
+    },
+    // 优化构建大小
+    chunkSizeWarningLimit: 1000,
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+      },
+    },
+  },
+  
+  server: {
+    port: 3000,
+    host: true,
+    proxy: {
+      '/api': {
+        target: 'https://api.bigcommerce.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
+  },
+  
+  define: {
+    __DEV__: JSON.stringify(process.env.NODE_ENV === 'development'),
+  },
+});
+```
+
+### 环境变量配置（生产环境）
+
+```bash
+# .env.development
+BIGCOMMERCE_STORE_HASH=your-dev-store-hash
+BIGCOMMERCE_ACCESS_TOKEN=your-dev-access-token
+BIGCOMMERCE_CLIENT_ID=your-dev-client-id
+BIGCOMMERCE_CLIENT_SECRET=your-dev-client-secret
+
+# .env.production
+BIGCOMMERCE_STORE_HASH=your-prod-store-hash
+BIGCOMMERCE_ACCESS_TOKEN=your-prod-access-token
+BIGCOMMERCE_CLIENT_ID=your-prod-client-id
+BIGCOMMERCE_CLIENT_SECRET=your-prod-client-secret
+```
+
+### 部署脚本
+
+```json
+// package.json
+{
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "deploy": "bc deploy",
+    "deploy:staging": "bc deploy --environment staging",
+    "deploy:production": "bc deploy --environment production",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint src --ext ts,tsx --fix",
+    "format": "prettier --write src",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "check": "pnpm run type-check && pnpm run lint && pnpm run test"
+  }
+}
+```
+
+## 最佳实践
+
+### 1. 组件设计原则
+
+- **单一职责**: 每个组件只负责一个功能
+- **可复用性**: 设计可复用的组件
+- **可测试性**: 组件应该易于测试
+- **性能优化**: 使用 React.memo 和 useMemo
+
+### 2. 状态管理最佳实践
+
+- **本地状态**: 使用 useState 管理组件内部状态
+- **全局状态**: 使用 Zustand 管理跨组件状态
+- **服务端状态**: 使用 React Query 或 SWR 管理 API 数据
+- **持久化**: 使用 Zustand persist 中间件持久化重要状态
+
+### 3. 性能优化策略
+
+- **代码分割**: 使用 React.lazy 和 Suspense
+- **图片优化**: 使用 WebP 格式和懒加载
+- **缓存策略**: 合理使用浏览器缓存和 CDN
+- **包大小优化**: 使用 tree-shaking 和动态导入
+
+### 4. 代码质量保证
+
+- **TypeScript**: 使用严格模式
+- **ESLint**: 配置严格的代码规范
+- **Prettier**: 统一的代码格式化
+- **测试覆盖**: 单元测试覆盖率 > 80%
+- **代码审查**: 强制代码审查流程
+
+### 5. 安全最佳实践
+
+- **环境变量**: 敏感信息使用环境变量
+- **API 安全**: 使用 HTTPS 和适当的认证
+- **输入验证**: 验证所有用户输入
+- **XSS 防护**: 使用 React 的内置 XSS 防护
+- **CSRF 防护**: 实现适当的 CSRF 令牌
+
+### 6. 可访问性 (A11y)
+
+```typescript
+// 示例：可访问的按钮组件
+export const AccessibleButton: React.FC<ButtonProps> = ({
+  children,
+  onClick,
+  disabled = false,
+  'aria-label': ariaLabel,
+  ...props
+}) => {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      aria-disabled={disabled}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+};
+```
+
+## 常见问题
+
+### 1. 如何处理 BigCommerce 特定的数据？
+
+使用 BigCommerce 提供的 API 和 SDK 来获取商店数据，确保遵循 BigCommerce 的数据结构和命名规范。
+
+### 2. 如何集成第三方服务？
+
+通过环境变量配置 API 密钥，使用 React Query 或 SWR 进行数据获取，实现适当的错误处理和重试机制。
+
+### 3. 如何处理 SEO？
+
+使用 React Helmet 管理页面元数据，确保服务端渲染支持，实现动态路由和静态生成。
+
+### 4. 如何调试 Catalyst 应用？
+
+使用 React DevTools 和浏览器开发者工具进行调试，配置适当的日志级别和错误监控。
+
+### 5. 如何处理主题定制？
+
+使用 CSS 变量和 Tailwind CSS 配置实现主题定制，支持深色模式和响应式设计。
+
+### 6. 如何优化加载性能？
+
+实现代码分割、图片懒加载、预加载关键资源，使用 Service Worker 进行缓存策略。
+
+**注意**: 这些规则是 BigCommerce Catalyst 开发的基础，请确保所有团队成员都熟悉并遵循这些规则。如有疑问或建议，请及时反馈给主维护人或者直接提交 PR。

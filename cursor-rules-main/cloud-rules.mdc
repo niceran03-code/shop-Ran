@@ -1,0 +1,841 @@
+---
+description: Cloud Services development rules
+globs:
+alwaysApply: false
+---
+# Cursor Rules - 云服务技术栈规范
+
+## AWS S3开发规范
+
+### S3存储桶配置
+
+```typescript
+// services/s3.service.ts
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+
+export class S3Service {
+  private s3Client: S3Client;
+  private bucketName: string;
+
+  constructor() {
+    this.s3Client = new S3Client({
+      region: process.env.AWS_REGION,
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+      },
+    });
+    this.bucketName = process.env.AWS_S3_BUCKET!;
+  }
+
+  // 上传文件
+  async uploadFile(key: string, file: Buffer, contentType: string): Promise<string> {
+    const command = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+      Body: file,
+      ContentType: contentType,
+      ACL: 'private', // 私有访问
+      Metadata: {
+        uploadedAt: new Date().toISOString(),
+      },
+    });
+
+    await this.s3Client.send(command);
+    return `https://${this.bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+  }
+
+  // 生成预签名URL用于上传
+  async generatePresignedUploadUrl(key: string, contentType: string): Promise<string> {
+    const command = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+      ContentType: contentType,
+    });
+
+    return getSignedUrl(this.s3Client, command, { expiresIn: 3600 }); // 1小时过期
+  }
+
+  // 生成预签名URL用于下载
+  async generatePresignedDownloadUrl(key: string): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+
+    return getSignedUrl(this.s3Client, command, { expiresIn: 3600 });
+  }
+
+  // 删除文件
+  async deleteFile(key: string): Promise<void> {
+    const command = new DeleteObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+
+    await this.s3Client.send(command);
+  }
+
+  // 批量删除文件
+  async deleteFiles(keys: string[]): Promise<void> {
+    const chunks = this.chunkArray(keys, 1000); // S3批量删除限制1000个
+
+    for (const chunk of chunks) {
+      const command = new DeleteObjectsCommand({
+        Bucket: this.bucketName,
+        Delete: {
+          Objects: chunk.map(key => ({ Key: key })),
+        },
+      });
+
+      await this.s3Client.send(command);
+    }
+  }
+
+  private chunkArray<T>(array: T[], size: number): T[][] {
+    const chunks: T[][] = [];
+    for (let i = 0; i < array.length; i += size) {
+      chunks.push(array.slice(i, i + size));
+    }
+    return chunks;
+  }
+}
+```
+
+### 文件上传中间件
+
+```typescript
+// middleware/file-upload.middleware.ts
+import multer from 'multer';
+import { v4 as uuidv4 } from 'uuid';
+import path from 'path';
+
+const storage = multer.memoryStorage();
+
+const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  // 允许的文件类型
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+  
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type'));
+  }
+};
+
+export const upload = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+    files: 5, // 最多5个文件
+  },
+});
+
+// 文件上传处理
+export class FileUploadService {
+  private s3Service: S3Service;
+
+  constructor() {
+    this.s3Service = new S3Service();
+  }
+
+  async uploadProductImages(files: Express.Multer.File[], productId: string): Promise<string[]> {
+    const uploadPromises = files.map(async (file, index) => {
+      const extension = path.extname(file.originalname);
+      const key = `products/${productId}/image-${index + 1}${extension}`;
+      
+      return this.s3Service.uploadFile(key, file.buffer, file.mimetype);
+    });
+
+    return Promise.all(uploadPromises);
+  }
+
+  async uploadUserAvatar(file: Express.Multer.File, userId: string): Promise<string> {
+    const extension = path.extname(file.originalname);
+    const key = `avatars/${userId}${extension}`;
+    
+    return this.s3Service.uploadFile(key, file.buffer, file.mimetype);
+  }
+}
+```
+
+### S3存储桶策略
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PrivateAccess",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:*",
+      "Resource": [
+        "arn:aws:s3:::your-bucket-name",
+        "arn:aws:s3:::your-bucket-name/*"
+      ],
+      "Condition": {
+        "Bool": {
+          "aws:SecureTransport": "false"
+        }
+      }
+    },
+    {
+      "Sid": "AllowCloudFrontAccess",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "cloudfront.amazonaws.com"
+      },
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::your-bucket-name/*",
+      "Condition": {
+        "StringEquals": {
+          "AWS:SourceArn": "arn:aws:cloudfront::your-account-id:distribution/your-distribution-id"
+        }
+      }
+    }
+  ]
+}
+```
+
+## AWS CloudFront开发规范
+
+### CloudFront配置
+
+```typescript
+// services/cloudfront.service.ts
+import { CloudFrontClient, CreateInvalidationCommand } from '@aws-sdk/client-cloudfront';
+
+export class CloudFrontService {
+  private cloudFrontClient: CloudFrontClient;
+  private distributionId: string;
+
+  constructor() {
+    this.cloudFrontClient = new CloudFrontClient({
+      region: process.env.AWS_REGION,
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+      },
+    });
+    this.distributionId = process.env.AWS_CLOUDFRONT_DISTRIBUTION_ID!;
+  }
+
+  // 创建缓存失效
+  async createInvalidation(paths: string[]): Promise<string> {
+    const command = new CreateInvalidationCommand({
+      DistributionId: this.distributionId,
+      InvalidationBatch: {
+        Paths: {
+          Quantity: paths.length,
+          Items: paths,
+        },
+        CallerReference: `invalidation-${Date.now()}`,
+      },
+    });
+
+    const response = await this.cloudFrontClient.send(command);
+    return response.Invalidation?.Id || '';
+  }
+
+  // 获取CloudFront URL
+  getCloudFrontUrl(key: string): string {
+    return `https://${process.env.AWS_CLOUDFRONT_DOMAIN}/${key}`;
+  }
+}
+```
+
+### 缓存策略配置
+
+```typescript
+// config/cloudfront-cache-policy.ts
+export const cachePolicies = {
+  // 静态资源缓存策略
+  staticAssets: {
+    TTL: 31536000, // 1年
+    headers: ['Accept-Encoding'],
+    cookies: [],
+    queryStrings: [],
+  },
+
+  // 产品图片缓存策略
+  productImages: {
+    TTL: 86400, // 1天
+    headers: ['Accept-Encoding'],
+    cookies: [],
+    queryStrings: ['v'], // 版本参数
+  },
+
+  // API响应缓存策略
+  apiResponses: {
+    TTL: 300, // 5分钟
+    headers: ['Authorization', 'Accept-Encoding'],
+    cookies: ['session'],
+    queryStrings: ['page', 'limit', 'sort'],
+  },
+};
+```
+
+## AWS ECS开发规范
+
+### Dockerfile规范
+
+```dockerfile
+# 多阶段构建
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# 复制package文件
+COPY package*.json ./
+COPY prisma ./prisma/
+
+# 安装依赖
+RUN pnpm install --prod
+
+# 生成Prisma客户端
+RUN npx prisma generate
+
+# 生产阶段
+FROM node:18-alpine AS production
+
+WORKDIR /app
+
+# 创建非root用户
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nestjs -u 1001
+
+# 复制构建产物
+COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nestjs:nodejs /app/package*.json ./
+COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
+COPY --chown=nestjs:nodejs dist ./dist
+
+# 切换到非root用户
+USER nestjs
+
+# 暴露端口
+EXPOSE 3000
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
+
+# 启动命令
+CMD ["node", "dist/main.js"]
+```
+
+### ECS任务定义
+
+```json
+{
+  "family": "ecommerce-api",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::your-account-id:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::your-account-id:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "ecommerce-api",
+      "image": "your-account-id.dkr.ecr.your-region.amazonaws.com/ecommerce-api:latest",
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "DATABASE_URL",
+          "value": "postgresql://user:password@your-rds-endpoint:5432/dbname"
+        },
+        {
+          "name": "REDIS_URL",
+          "value": "redis://your-elasticache-endpoint:6379"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:your-region:your-account-id:secret:jwt-secret"
+        },
+        {
+          "name": "AWS_ACCESS_KEY_ID",
+          "valueFrom": "arn:aws:secretsmanager:your-region:your-account-id:secret:aws-credentials:access-key-id"
+        },
+        {
+          "name": "AWS_SECRET_ACCESS_KEY",
+          "valueFrom": "arn:aws:secretsmanager:your-region:your-account-id:secret:aws-credentials:secret-access-key"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/ecommerce-api",
+          "awslogs-region": "your-region",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}
+```
+
+### ECS服务配置
+
+```typescript
+// infrastructure/ecs-service.ts
+import * as ecs from 'aws-cdk-lib/aws-ecs';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
+
+export class EcommerceService extends ecs.FargateService {
+  constructor(scope: Construct, id: string, props: EcommerceServiceProps) {
+    super(scope, id, {
+      cluster: props.cluster,
+      taskDefinition: props.taskDefinition,
+      desiredCount: 2,
+      minHealthyPercent: 50,
+      maxHealthyPercent: 200,
+      assignPublicIp: false,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+      },
+      securityGroups: [props.securityGroup],
+    });
+
+    // 配置自动扩缩容
+    const scaling = this.autoScaleTaskCount({
+      minCapacity: 2,
+      maxCapacity: 10,
+    });
+
+    scaling.scaleOnCpuUtilization('CpuScaling', {
+      targetUtilizationPercent: 70,
+      scaleInCooldown: Duration.seconds(60),
+      scaleOutCooldown: Duration.seconds(60),
+    });
+
+    scaling.scaleOnMemoryUtilization('MemoryScaling', {
+      targetUtilizationPercent: 80,
+      scaleInCooldown: Duration.seconds(60),
+      scaleOutCooldown: Duration.seconds(60),
+    });
+
+    scaling.scaleOnRequestCount('RequestScaling', {
+      targetRequestsPerSecond: 100,
+      scaleInCooldown: Duration.seconds(60),
+      scaleOutCooldown: Duration.seconds(60),
+    });
+  }
+}
+```
+
+## AWS RDS开发规范
+
+### RDS配置
+
+```typescript
+// infrastructure/rds-stack.ts
+import * as rds from 'aws-cdk-lib/aws-rds';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
+
+export class DatabaseStack extends Stack {
+  constructor(scope: Construct, id: string, props?: StackProps) {
+    super(scope, id, props);
+
+    const vpc = new ec2.Vpc(this, 'DatabaseVpc', {
+      maxAzs: 2,
+      natGateways: 1,
+    });
+
+    // 创建数据库子网组
+    const dbSubnetGroup = new rds.SubnetGroup(this, 'DatabaseSubnetGroup', {
+      vpc,
+      subnetGroupName: 'ecommerce-db-subnet-group',
+      description: 'Subnet group for Ecommerce database',
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+      },
+    });
+
+    // 创建数据库安全组
+    const dbSecurityGroup = new ec2.SecurityGroup(this, 'DatabaseSecurityGroup', {
+      vpc,
+      description: 'Security group for Ecommerce database',
+      allowAllOutbound: false,
+    });
+
+    // 允许ECS任务访问数据库
+    dbSecurityGroup.addIngressRule(
+      ec2.Peer.anyIpv4(),
+      ec2.Port.tcp(5432),
+      'Allow PostgreSQL access from ECS tasks'
+    );
+
+    // 创建RDS实例
+    const database = new rds.DatabaseInstance(this, 'EcommerceDatabase', {
+      engine: rds.DatabaseInstanceEngine.postgres({
+        version: rds.PostgresEngineVersion.VER_15,
+      }),
+      instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO),
+      vpc,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+      },
+      subnetGroup: dbSubnetGroup,
+      securityGroups: [dbSecurityGroup],
+      databaseName: 'ecommerce',
+      credentials: rds.Credentials.fromGeneratedSecret('postgres'),
+      backupRetention: Duration.days(7),
+      deletionProtection: true,
+      removalPolicy: RemovalPolicy.RETAIN,
+      storageEncrypted: true,
+      monitoringInterval: Duration.minutes(1),
+      enablePerformanceInsights: true,
+      performanceInsightsRetention: Duration.days(7),
+      autoMinorVersionUpgrade: true,
+      publiclyAccessible: false,
+      multiAz: true,
+      storageType: rds.StorageType.GP3,
+      allocatedStorage: 20,
+      maxAllocatedStorage: 100,
+    });
+
+    // 创建只读副本
+    const readReplica = database.addReadReplica('ReadReplica', {
+      instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO),
+      vpc,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+      },
+      securityGroups: [dbSecurityGroup],
+      publiclyAccessible: false,
+      storageEncrypted: true,
+    });
+  }
+}
+```
+
+### 数据库连接池配置
+
+```typescript
+// config/database.config.ts
+import { Pool } from 'pg';
+
+export const createDatabasePool = () => {
+  return new Pool({
+    host: process.env.DB_HOST,
+    port: parseInt(process.env.DB_PORT || '5432'),
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    
+    // 连接池配置
+    max: 20, // 最大连接数
+    min: 2,  // 最小连接数
+    idleTimeoutMillis: 30000, // 空闲连接超时
+    connectionTimeoutMillis: 2000, // 连接超时
+    acquireTimeoutMillis: 2000, // 获取连接超时
+    
+    // 查询超时
+    statement_timeout: 30000, // 30秒
+    query_timeout: 30000,
+    
+    // 连接验证
+    allowExitOnIdle: true,
+  });
+};
+
+// 数据库健康检查
+export const checkDatabaseHealth = async (pool: Pool): Promise<boolean> => {
+  try {
+    const client = await pool.connect();
+    await client.query('SELECT 1');
+    client.release();
+    return true;
+  } catch (error) {
+    console.error('Database health check failed:', error);
+    return false;
+  }
+};
+```
+
+## AWS ALB开发规范
+
+### ALB配置
+
+```typescript
+// infrastructure/alb-stack.ts
+import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
+
+export class LoadBalancerStack extends Stack {
+  constructor(scope: Construct, id: string, props?: StackProps) {
+    super(scope, id, props);
+
+    const vpc = new ec2.Vpc(this, 'ALBVpc', {
+      maxAzs: 2,
+    });
+
+    // 创建ALB
+    const loadBalancer = new elbv2.ApplicationLoadBalancer(this, 'EcommerceALB', {
+      vpc,
+      internetFacing: true,
+      loadBalancerName: 'ecommerce-alb',
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PUBLIC,
+      },
+      securityGroup: new ec2.SecurityGroup(this, 'ALBSecurityGroup', {
+        vpc,
+        description: 'Security group for Ecommerce ALB',
+        allowAllOutbound: true,
+      }),
+    });
+
+    // 创建目标组
+    const targetGroup = new elbv2.ApplicationTargetGroup(this, 'EcommerceTargetGroup', {
+      vpc,
+      port: 3000,
+      protocol: elbv2.ApplicationProtocol.HTTP,
+      targetType: elbv2.TargetType.IP,
+      healthCheck: {
+        path: '/health',
+        healthyHttpCodes: '200',
+        interval: Duration.seconds(30),
+        timeout: Duration.seconds(5),
+        healthyThresholdCount: 2,
+        unhealthyThresholdCount: 3,
+      },
+    });
+
+    // 创建监听器
+    const listener = loadBalancer.addListener('HTTPSListener', {
+      port: 443,
+      protocol: elbv2.ApplicationProtocol.HTTPS,
+      certificates: [certificate], // 需要配置SSL证书
+      defaultAction: elbv2.ListenerAction.forward([targetGroup]),
+    });
+
+    // 添加HTTP到HTTPS重定向
+    loadBalancer.addListener('HTTPListener', {
+      port: 80,
+      protocol: elbv2.ApplicationProtocol.HTTP,
+      defaultAction: elbv2.ListenerAction.redirect({
+        protocol: 'HTTPS',
+        port: '443',
+        permanent: true,
+      }),
+    });
+
+    // 添加路径路由
+    listener.addAction('ApiAction', {
+      priority: 100,
+      conditions: [
+        elbv2.ListenerCondition.pathPatterns(['/api/*']),
+      ],
+      action: elbv2.ListenerAction.forward([targetGroup]),
+    });
+
+    listener.addAction('StaticAction', {
+      priority: 200,
+      conditions: [
+        elbv2.ListenerCondition.pathPatterns(['/static/*']),
+      ],
+      action: elbv2.ListenerAction.forward([staticTargetGroup]),
+    });
+  }
+}
+```
+
+### 健康检查端点
+
+```typescript
+// controllers/health.controller.ts
+import { Controller, Get } from '@nestjs/common';
+import { HealthCheck, HealthCheckService, TypeOrmHealthIndicator } from '@nestjs/terminus';
+
+@Controller('health')
+export class HealthController {
+  constructor(
+    private health: HealthCheckService,
+    private db: TypeOrmHealthIndicator,
+  ) {}
+
+  @Get()
+  @HealthCheck()
+  check() {
+    return this.health.check([
+      // 数据库健康检查
+      () => this.db.pingCheck('database'),
+      
+      // Redis健康检查
+      () => this.redis.pingCheck('redis'),
+      
+      // 自定义健康检查
+      () => this.customHealthCheck(),
+    ]);
+  }
+
+  private async customHealthCheck() {
+    try {
+      // 检查关键服务
+      const checks = await Promise.all([
+        this.checkDatabaseConnection(),
+        this.checkRedisConnection(),
+        this.checkExternalServices(),
+      ]);
+
+      const isHealthy = checks.every(check => check.status === 'up');
+
+      return {
+        custom: {
+          status: isHealthy ? 'up' : 'down',
+          details: checks,
+        },
+      };
+    } catch (error) {
+      return {
+        custom: {
+          status: 'down',
+          error: error.message,
+        },
+      };
+    }
+  }
+}
+```
+
+## AWS Secrets Manager开发规范
+
+### 密钥管理
+
+```typescript
+// services/secrets.service.ts
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
+
+export class SecretsService {
+  private secretsClient: SecretsManagerClient;
+
+  constructor() {
+    this.secretsClient = new SecretsManagerClient({
+      region: process.env.AWS_REGION,
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+      },
+    });
+  }
+
+  async getSecret(secretName: string): Promise<any> {
+    const command = new GetSecretValueCommand({
+      SecretId: secretName,
+    });
+
+    try {
+      const response = await this.secretsClient.send(command);
+      const secretString = response.SecretString;
+      
+      if (secretString) {
+        return JSON.parse(secretString);
+      }
+      
+      throw new Error('Secret not found');
+    } catch (error) {
+      console.error(`Error retrieving secret ${secretName}:`, error);
+      throw error;
+    }
+  }
+
+  async getDatabaseCredentials(): Promise<{
+    username: string;
+    password: string;
+    host: string;
+    port: number;
+    database: string;
+  }> {
+    const secret = await this.getSecret('ecommerce/database');
+    return {
+      username: secret.username,
+      password: secret.password,
+      host: secret.host,
+      port: parseInt(secret.port),
+      database: secret.dbname,
+    };
+  }
+
+  async getJWTSecret(): Promise<string> {
+    const secret = await this.getSecret('ecommerce/jwt');
+    return secret.secret;
+  }
+}
+```
+
+### 环境配置管理
+
+```typescript
+// config/environment.config.ts
+import { SecretsService } from '../services/secrets.service';
+
+export class EnvironmentConfig {
+  private static instance: EnvironmentConfig;
+  private secretsService: SecretsService;
+  private config: any = {};
+
+  private constructor() {
+    this.secretsService = new SecretsService();
+  }
+
+  static getInstance(): EnvironmentConfig {
+    if (!EnvironmentConfig.instance) {
+      EnvironmentConfig.instance = new EnvironmentConfig();
+    }
+    return EnvironmentConfig.instance;
+  }
+
+  async loadSecrets(): Promise<void> {
+    try {
+      const [dbCredentials, jwtSecret, awsCredentials] = await Promise.all([
+        this.secretsService.getDatabaseCredentials(),
+        this.secretsService.getJWTSecret(),
+        this.secretsService.getSecret('ecommerce/aws'),
+      ]);
+
+      this.config = {
+        ...this.config,
+        database: dbCredentials,
+        jwt: { secret: jwtSecret },
+        aws: awsCredentials,
+      };
+    } catch (error) {
+      console.error('Failed to load secrets:', error);
+      throw error;
+    }
+  }
+
+  get(key: string): any {
+    return this.config[key];
+  }
+
+  getDatabaseUrl(): string {
+    const db = this.config.database;
+    return `postgresql://${db.username}:${db.password}@${db.host}:${db.port}/${db.database}`;
+  }
+}
+```

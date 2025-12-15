@@ -1,0 +1,606 @@
+---
+description: General development rules
+globs:
+alwaysApply: false
+---
+# Cursor Rules - 通用规范
+
+## 开发流程规范
+
+### 先设计后开发原则
+
+- **禁止直接修改代码**：在开始任何编码工作之前，必须先进行需求分析和设计
+- **需求复述确认**：每次接收到需求后，必须复述并确认需求理解是否正确
+- **设计优先**：先设计架构、接口、数据结构，再进行具体实现
+- **分步确认**：每个重要步骤都需要用户确认后再继续
+
+### 思考过程规范
+
+1. **需求理解阶段**
+   - 复述用户需求，确保理解准确
+   - 识别核心功能和边界条件
+   - 确认技术栈和约束条件
+   - 提出问题和澄清点
+
+2. **设计分析阶段**
+   - 分析技术可行性
+   - 设计系统架构
+   - 定义接口规范
+   - 规划数据结构
+   - 考虑性能和扩展性
+
+3. **实现规划阶段**
+   - 制定开发计划
+   - 确定实现步骤
+   - 识别潜在风险
+   - 准备测试策略
+
+4. **代码实现阶段**
+   - 按照设计进行实现
+   - 遵循编码规范
+   - 添加必要注释
+   - 进行代码审查
+
+### 开发流程示例
+
+用户需求 → 需求复述确认 → 技术分析 → 架构设计 → 接口设计 → 数据结构设计 → 实现计划 → 用户确认 → 代码实现 → 测试验证
+
+
+### 沟通规范
+
+- 使用清晰的语言描述技术方案
+- 提供多个可选方案时，说明各自的优缺点
+- 在关键决策点主动征求用户意见
+- 及时反馈开发进度和遇到的问题
+
+## 团队协作基本原则
+
+### 语言规范
+
+- 前后端开发语言为 **TypeScript**
+- 文档、注释、变量、函数、类名等均应使用英文，不允许出现中文
+- **Git commit message 必须使用英文**，禁止使用中文，确保国际团队可理解
+- 代码库内如需多语言支持，必须采用国际化（i18n）方案，禁止硬编码多语言文本
+- 代码注释采用英文
+- 代码、文档、提交信息等应避免中英文混杂，保持风格统一
+- 代码中如涉及第三方库或API，优先选择有良好文档和社区支持的英文资源
+- 前端项目需配置 `locales/` 目录，采用 JSON 或 YAML 格式存放多语言资源
+- 后端如需多语言响应，建议使用如 `i18next`、`nestjs-i18n` 等主流国际化中间件
+
+### 代码风格统一
+
+- 所有代码必须遵循TypeScript严格模式
+- 使用ESLint + Prettier进行代码格式化
+- 提交前必须通过所有lint检查
+- 使用统一的代码注释风格
+
+### 包管理器规范
+
+- **强制要求**：所有项目必须使用 **pnpm** 作为包管理器，禁止使用 npm 或 yarn
+- **性能优势**：pnpm 提供更快的安装速度和更高效的磁盘空间使用
+- **依赖管理**：pnpm 的严格依赖管理确保项目依赖的一致性和安全性
+- **Monorepo 支持**：pnpm 原生支持 monorepo 项目结构
+
+#### pnpm 使用规范
+
+```bash
+# 安装依赖
+pnpm install
+
+# 添加生产依赖
+pnpm add <package-name>
+
+# 添加开发依赖
+pnpm add -D <package-name>
+
+# 添加全局依赖
+pnpm add -g <package-name>
+
+# 运行脚本
+pnpm run <script-name>
+
+# 执行命令
+pnpm exec <command>
+
+# 更新依赖
+pnpm update
+
+# 审计依赖
+pnpm audit
+
+# 清理缓存
+pnpm store prune
+```
+
+#### 项目初始化
+
+```bash
+# 创建新项目
+pnpm create <template>
+
+# 初始化 package.json
+pnpm init
+
+# 设置 pnpm 配置
+pnpm config set auto-install-peers true
+pnpm config set shamefully-hoist false
+```
+
+#### CI/CD 配置
+
+- GitHub Actions 中使用 `cache: 'pnpm'`
+- Docker 构建中使用 `pnpm install --prod`
+- 确保 `.npmrc` 文件配置正确
+
+#### 禁止使用的命令
+
+- ❌ `npm install`
+- ❌ `npm run <script>`
+- ❌ `yarn install`
+- ❌ `yarn run <script>`
+
+#### 推荐使用的命令
+
+- ✅ `pnpm install`
+- ✅ `pnpm run <script>`
+- ✅ `pnpm add <package>`
+- ✅ `pnpm audit`
+
+### 命名规范
+
+- 使用有意义的变量和函数名, 如果需要前缀，请使用网站名称做为前缀
+- 遵循camelCase命名规范
+- 常量使用UPPER_SNAKE_CASE
+- 文件名使用kebab-case
+- 组件名使用PascalCase
+
+### 代码质量
+
+- 每个函数必须有单一职责
+- 尽可能的使用纯函数
+- 避免深度嵌套（最多3层）
+- 使用TypeScript类型定义，避免any类型，避免UNKOWN返回值
+- 单元测试覆盖率不低于80%
+- 使用JSDoc注释文档化公共API
+
+### Git工作流
+
+- 使用feature分支开发
+- 提交信息使用约定式提交格式
+- 每个PR必须有代码审查
+- 合并前必须通过CI/CD检查
+
+### Git Conventional Commits规范
+
+#### 语言要求
+
+- **强制要求**：所有 Git commit message 必须使用英文，禁止使用中文
+- **格式统一**：提交信息必须遵循 Conventional Commits 规范
+- **国际化**：确保提交信息可以被国际团队理解
+- **工具支持**：推荐使用 commitizen 等工具确保格式正确
+
+#### 提交信息格式
+
+```bash
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+#### 提交类型（Type）
+
+- `feat`: 新功能
+- `fix`: 修复bug
+- `docs`: 文档更新
+- `style`: 代码格式调整（不影响代码逻辑）
+- `refactor`: 代码重构
+- `perf`: 性能优化
+- `test`: 测试相关
+- `chore`: 构建过程或辅助工具的变动
+- `ci`: CI/CD配置变更
+- `build`: 构建系统或外部依赖变更
+- `revert`: 回滚之前的提交
+
+#### 作用域（Scope）
+
+- `api`: API相关变更
+- `auth`: 认证相关
+- `ui`: 用户界面
+- `db`: 数据库相关
+- `cache`: 缓存相关
+- `deploy`: 部署相关
+- `deps`: 依赖更新
+
+#### 提交信息示例
+
+```bash
+# 新功能
+feat(auth): add JWT authentication system
+feat(api): implement user registration endpoint
+feat(ui): add product search functionality
+
+# 修复bug
+fix(api): resolve user login validation issue
+fix(db): fix database connection timeout
+fix(ui): correct product image display on mobile
+
+# 文档更新
+docs: update API documentation
+docs(readme): add deployment instructions
+
+# 代码重构
+refactor(api): simplify user service logic
+refactor(ui): extract reusable components
+
+# 性能优化
+perf(db): optimize product query performance
+perf(cache): implement Redis caching for products
+
+# 测试相关
+test(api): add unit tests for user service
+test(ui): add integration tests for checkout flow
+
+# 构建和部署
+chore(deps): update dependencies to latest versions
+ci: add automated testing pipeline
+build: update Docker configuration
+
+# 回滚
+revert: revert "feat: add new payment method"
+```
+
+#### 提交信息最佳实践
+
+- **强制使用英文**：所有提交信息必须使用英文，禁止使用中文
+- 使用现在时态（add, fix, update）
+- 第一行不超过50个字符
+- 描述要简洁明了
+- 使用小写字母
+- 不要在末尾加句号
+- 避免使用缩写，确保可读性
+
+#### 详细提交信息示例
+
+```bash
+feat(auth): implement OAuth2 authentication
+
+- Add Google OAuth2 provider integration
+- Implement JWT token generation and validation
+- Add user session management
+- Update user model to support OAuth profiles
+
+Closes #123
+Breaking Change: User authentication flow has changed
+```
+
+#### 分支命名规范
+
+> 推荐分支命名时在前缀加上开发者英文名（如 `leo`），用斜杠分隔。例如：`leo/feature/user-authentication`。
+
+```bash
+# 功能分支
+leo/feature/user-authentication
+leo/feature/product-search
+leo/feature/checkout-flow
+
+# 修复分支
+leo/fix/login-validation
+leo/fix/database-connection
+leo/fix/mobile-responsive
+
+# 热修复分支
+leo/hotfix/security-patch
+leo/hotfix/critical-bug
+
+# 发布分支
+leo/release/v1.2.0
+leo/release/v2.0.0
+```
+
+#### PR标题规范
+
+```bash
+# 功能PR
+feat: Add user authentication system
+feat(api): Implement product search API
+feat(ui): Add shopping cart functionality
+
+# 修复PR
+fix: Resolve login validation issue
+fix(api): Fix database connection timeout
+fix(ui): Correct mobile responsive layout
+
+# 重构PR
+refactor: Simplify user service logic
+refactor(ui): Extract reusable components
+
+# 文档PR
+docs: Update API documentation
+docs: Add deployment guide
+```
+
+#### Git工作流步骤
+
+1. **创建功能分支**
+
+   ```bash
+   git checkout -b leo/feature/user-authentication
+   ```
+
+2. **开发并提交代码**
+
+   ```bash
+   git add .
+   git commit -m "feat(auth): add user registration form"
+   git commit -m "feat(auth): implement form validation"
+   git commit -m "test(auth): add unit tests for registration"
+   ```
+
+3. **推送到远程分支**
+
+   ```bash
+   git push origin leo/feature/user-authentication
+   ```
+
+4. **创建Pull Request**
+
+   - 标题：`feat: Add user authentication system`
+   - 描述：详细说明功能和变更
+   - 标签：`feature`, `auth`
+
+5. **代码审查**
+
+   - 至少需要1个审查者批准
+   - 所有CI检查必须通过
+   - 解决所有审查意见
+
+6. **合并到主分支（使用rebase方式）**
+
+   ```bash
+   git checkout main
+   git pull origin main
+   git checkout leo/feature/user-authentication
+   git rebase main
+   # 解决冲突后继续：git rebase --continue
+   git checkout main
+   git merge leo/feature/user-authentication
+   git push origin main
+   ```
+
+7. **删除功能分支**
+
+   ```bash
+   git branch -d leo/feature/user-authentication
+   git push origin --delete leo/feature/user-authentication
+   ```
+
+### 文档规范
+
+- README文件必须包含项目说明和启动步骤
+- API文档使用Swagger
+- 复杂业务逻辑必须有注释说明
+- 数据库变更必须有迁移文档
+
+### 安全规范
+
+- 敏感信息使用环境变量
+- 所有用户输入必须验证
+- 使用HTTPS进行数据传输
+- 定期更新依赖包版本
+
+### 性能优化
+
+- 避免N+1查询问题
+- 合理使用缓存策略
+- 图片和静态资源优化
+- 代码分割和懒加载
+
+### 错误处理
+
+- 统一错误处理机制
+- 记录详细的错误日志
+- 用户友好的错误提示
+- 优雅的降级处理
+
+### 测试策略
+
+- 单元测试覆盖核心业务逻辑
+- 集成测试覆盖API接口
+- E2E测试覆盖关键用户流程
+- 性能测试覆盖高并发场景
+- 没有特殊说明不需要写测试
+
+## 代码注释规范
+
+### 函数注释
+
+```typescript
+/**
+ * Calculates the total price including tax and shipping
+ * @param items - Array of cart items
+ * @param taxRate - Tax rate as decimal (e.g., 0.08 for 8%)
+ * @param shippingCost - Fixed shipping cost
+ * @returns Total price with tax and shipping
+ */
+function calculateTotalPrice(
+  items: CartItem[],
+  taxRate: number,
+  shippingCost: number
+): number {
+  // Implementation here
+}
+```
+
+### 类注释
+
+```typescript
+/**
+ * Service for handling user authentication and authorization
+ * Provides methods for login, logout, and token management
+ */
+class AuthService {
+  // Class implementation
+}
+```
+
+### 复杂逻辑注释
+
+```typescript
+// Calculate discount based on user tier and order amount
+// Bronze: 5% off orders > $100
+// Silver: 10% off orders > $200  
+// Gold: 15% off orders > $500
+const discountRate = getUserDiscountRate(userTier, orderAmount);
+```
+
+## 环境配置规范
+
+### 环境变量命名
+
+```bash
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/dbname
+REDIS_URL=redis://localhost:6379
+
+# AWS Services
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+AWS_REGION=us-east-1
+AWS_S3_BUCKET=your-bucket-name
+
+# Application
+NODE_ENV=production
+PORT=3000
+JWT_SECRET=your_jwt_secret
+```
+
+### 配置文件结构
+
+```typescript
+// config/database.ts
+export const databaseConfig = {
+  url: process.env.DATABASE_URL,
+  pool: {
+    min: 2,
+    max: 10,
+    idleTimeoutMillis: 30000,
+  },
+};
+
+// config/aws.ts
+export const awsConfig = {
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+};
+```
+
+## 日志规范
+
+### 日志级别
+
+```typescript
+// ERROR: System errors that need immediate attention
+logger.error('Database connection failed', { error, retryCount });
+
+// WARN: Warning conditions that should be monitored
+logger.warn('High memory usage detected', { usage: '85%' });
+
+// INFO: General information about application flow
+logger.info('User login successful', { userId, timestamp });
+
+// DEBUG: Detailed information for debugging
+logger.debug('Processing order', { orderId, items: orderItems.length });
+```
+
+### 日志格式
+
+```typescript
+interface LogEntry {
+  timestamp: string;
+  level: 'error' | 'warn' | 'info' | 'debug';
+  message: string;
+  requestId?: string;
+  userId?: string;
+  metadata?: Record<string, any>;
+}
+```
+
+## 错误处理规范
+
+### 自定义错误类
+
+```typescript
+class ValidationError extends Error {
+  constructor(
+    message: string,
+    public field: string,
+    public code: string
+  ) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+}
+
+class BusinessLogicError extends Error {
+  constructor(
+    message: string,
+    public errorCode: string,
+    public statusCode: number = 400
+  ) {
+    super(message);
+    this.name = 'BusinessLogicError';
+  }
+}
+```
+
+### 统一错误响应
+
+```typescript
+interface ErrorResponse {
+  success: false;
+  error: {
+    code: string;
+    message: string;
+    details?: Record<string, any>;
+  };
+  timestamp: string;
+  requestId: string;
+}
+```
+
+## 性能监控规范
+
+### 关键指标
+
+- API响应时间（P95 < 500ms）
+- 数据库查询时间（P95 < 100ms）
+- 内存使用率（< 80%）
+- CPU使用率（< 70%）
+- 错误率（< 1%）
+
+### 监控代码示例
+
+```typescript
+// Performance monitoring middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    logger.info('Request completed', {
+      method: req.method,
+      url: req.url,
+      statusCode: res.statusCode,
+      duration,
+      userAgent: req.get('User-Agent'),
+    });
+  });
+  
+  next();
+});
+```

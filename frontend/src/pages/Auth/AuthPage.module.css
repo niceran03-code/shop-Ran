@@ -1,0 +1,27 @@
+.container {
+  min-height: 100vh;
+  background: #f5f7fa;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.card {
+  width: 380px;
+  background: #ffffff;
+  border-radius: 12px;
+
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+
+  border: 1px solid #e5e7eb;
+}
+
+.card :global(.ant-card-head-title) {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937; /* 深灰 */
+}
+
+.card :global(.ant-form-item) {
+  margin-bottom: 16px;
+}

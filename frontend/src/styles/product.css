@@ -1,0 +1,5 @@
+/* frontend/src/styles/product.css */
+.product-description img {
+  max-width: 100%;
+  height: auto;
+}
