@@ -1,134 +1,145 @@
-# E-commerce Admin System (NestJS + Prisma + PostgreSQL + React Admin)
+# E-commerce Admin System (NestJS + Prisma + PostgreSQL + React + Ant Design)
+
+> **Status**: Work in Progress (WIP)
 
 ## Overview
 
-This project is an **e-commerce admin management system**, consisting of:
+- Monorepo with `backend` (NestJS + Prisma + PostgreSQL) and `frontend` (React + Vite + Ant Design).
+- Provides core admin capabilities: auth, role-based access, products/categories, users, dashboard analytics, image upload, recycle bin (soft delete).
 
-- **Backend**: NestJS, Prisma ORM, PostgreSQL
-- **Frontend**: React, React Router, Ant Design
+## Tech Stack
 
-It provides essential admin functionalities including user authentication, product management, and category management.
+- Backend: NestJS 11, Prisma 5, PostgreSQL, JWT/Passport, Multer upload, ConfigModule, Swagger-ready, Jest.
+- Frontend: React 19, React Router 7, Ant Design 6, Axios, Recharts, WangEditor, Framer Motion, Vite.
+- Tooling: pnpm, ESLint, TypeScript, Prisma Migrate/Seed.
 
-![status](https://img.shields.io/badge/status-in%20development-yellow)
+## Key Features (by module)
 
-> **Work in Progress — This project is actively being developed.**
+- Auth
+  - Email/password login with bcrypt hashing; only ADMIN can sign in to admin UI.
+  - JWT accessToken (default 5m, configurable via `JWT_EXPIRES_IN`) + refreshToken (7d).
+  - Endpoints: `/auth/login`, `/auth/register`, `/auth/refresh`; refresh token persisted on User.
+  - `roles.decorator` + `roles.guard` for RBAC (ADMIN/USER).
+  - `response.interceptor` wraps successful responses to a consistent shape.
+- Users
+  - CRUD in `users` module; signup defaults to USER. Promote to ADMIN manually for console access.
+- Categories
+  - Unique category name; parent/child self-relation; one-to-many with products.
+- Products
+  - CRUD; soft delete via `deletedAt` powering recycle bin.
+  - Linked to category and creator; `isActive` flag; optional description.
+- Dashboard
+  - Aggregates: product count (excluding soft-deleted), category count, admin count.
+  - Category distribution and last-7-day creation trend.
+- Upload
+  - `/upload/image`: image-only, 5MB limit, stored under `uploads/images`, returns public URL.
+- Frontend
+  - Protected routes via `ProtectedRoute`; redirect if unauthenticated.
+  - Pages: Auth (login/register), Dashboard, Users, Products (list/create/edit/detail/recycle bin), Categories (list/create/edit).
+  - Axios interceptor auto-attaches accessToken; refreshes on 401 using refreshToken.
+  - Ant Design UI + Recharts charts + WangEditor rich text.
 
----
+## Directory Glance
 
-# Features
+- `backend/src/modules/*`: auth, users, products, categories, dashboard, upload.
+- `backend/prisma/`: `schema.prisma` models, `migrations/`, `seed.ts`.
+- `backend/common/`: decorators, guards, interceptors, Prisma exception filters.
+- `frontend/src/routes/index.tsx`: router with protected layout.
+- `frontend/src/pages/*`: page components; `utils/axios.ts` Axios instance and interceptors.
 
-## User Features
+## Database Model (Prisma)
 
-- User registration
-- User login
-- JWT-based authentication
-- Secure password hashing via bcrypt
+### User
 
----
+| Field        | Type           | Description                 |
+| ------------ | -------------- | --------------------------- |
+| id           | Int, PK        | User ID                     |
+| username     | String, unique | Username                    |
+| email        | String, unique | Email                       |
+| password     | String         | bcrypt hash                 |
+| role         | Enum Role      | ADMIN / USER (default USER) |
+| refreshToken | String?        | Persisted refresh token     |
+| createdAt    | DateTime       | Created time                |
+| updatedAt    | DateTime       | Updated time                |
 
-## Product Features
+### Category
 
-- Create product
-- Product list (active / inactive)
-- View product details
-- Update product
-- Delete product
+| Field     | Type           | Description         |
+| --------- | -------------- | ------------------- |
+| id        | Int, PK        | Category ID         |
+| name      | String, unique | Category name       |
+| parentId  | Int?           | Parent category     |
+| children  | Category[]     | Children categories |
+| products  | Product[]      | Linked products     |
+| createdAt | DateTime       | Created time        |
+| updatedAt | DateTime       | Updated time        |
 
----
+### Product
 
-## Category Features
+| Field       | Type           | Description                |
+| ----------- | -------------- | -------------------------- |
+| id          | Int, PK        | Product ID                 |
+| name        | String, unique | Product name               |
+| price       | Float          | Price                      |
+| stock       | Int            | Stock                      |
+| isActive    | Boolean        | On/off shelf, default true |
+| description | String?        | Description                |
+| deletedAt   | DateTime?      | Soft delete timestamp      |
+| userId      | Int            | Creator user               |
+| categoryId  | Int            | Category                   |
+| createdAt   | DateTime       | Created time               |
+| updatedAt   | DateTime       | Updated time               |
 
-- Create category
-- Category list (supports parent / child categories)
-- Edit category
-- Delete category
+### Enum
 
----
+| Name | Values      |
+| ---- | ----------- |
+| Role | ADMIN, USER |
 
-## Admin Frontend Features
+## Environment Variables
 
-- Registration page
-- Login page
-- Product management pages (list, create, edit)
-- Category management pages
-- Navigation using React Router
-- API calls handled with Axios
-- UI layout built with Ant Design
+Create `backend/.env` (example):
 
----
+```
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DB_NAME"
+JWT_SECRET="dev-secret"
+JWT_EXPIRES_IN=300        # seconds; default 300 (5 minutes)
+```
 
-# Database Schema
+## Install & Run
 
-## User Table
+> Requires local PostgreSQL; pnpm recommended.
 
-| Field     | Type     | Description        |
-| --------- | -------- | ------------------ |
-| id        | Int, PK  | User ID            |
-| username  | String   | Unique username    |
-| password  | String   | Hashed password    |
-| email     | String   | User email         |
-| createdAt | DateTime | Creation timestamp |
-| updatedAt | DateTime | Update timestamp   |
-
----
-
-## Category Table
-
-| Field     | Type     | Description                |
-| --------- | -------- | -------------------------- |
-| id        | Int, PK  | Category ID                |
-| name      | String   | Category name              |
-| parentId  | Int?     | Parent category (nullable) |
-| createdAt | DateTime | Creation timestamp         |
-| updatedAt | DateTime | Update timestamp           |
-
----
-
-## Product Table
-
-| Field       | Type     | Description                      |
-| ----------- | -------- | -------------------------------- |
-| id          | Int, PK  | Product ID                       |
-| name        | String   | Product name                     |
-| price       | Float    | Product price                    |
-| stock       | Int      | Stock quantity                   |
-| isActive    | Boolean  | Product status (active/inactive) |
-| description | String?  | Product description (optional)   |
-| userId      | Int      | User who created the product     |
-| categoryId  | Int      | Category ID                      |
-| createdAt   | DateTime | Creation timestamp               |
-| updatedAt   | DateTime | Update timestamp                 |
-
-# Backend Setup (NestJS)
-
-## Installation
+### Backend
 
 ```bash
+cd backend
 pnpm install
+pnpm prisma migrate dev      # init/sync DB
+pnpm prisma db seed          # optional: seed data
+pnpm run start:dev           # default port 3000
 ```
 
-## Running the app
+### Frontend
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+cd frontend
+pnpm install
+pnpm run dev                 # default port 5173
 ```
 
-## Test
+## Testing
+
+Backend (from `backend`):
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+pnpm run test         # unit
+pnpm run test:e2e     # e2e
+pnpm run test:cov     # coverage
 ```
+
+## Notes
+
+- Admin login requires `role=ADMIN`; promote a user manually in DB after registration.
+- Uploads are stored under `backend/uploads/images`, returned URL like `http://localhost:3000/uploads/images/<filename>`.
+- Axios 401 handling: auto-refresh via refreshToken; on refresh failure, clears storage and redirects to login.
