@@ -9,6 +9,7 @@ import { ProductModule } from './modules/products/product.module';
 import { UsersModule } from './modules/users/user.module';
 import { CategoryModule } from './modules/categories/category.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { UploadModule } from './modules/upload/upload.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     ProductModule,
     CategoryModule,
     DashboardModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService],

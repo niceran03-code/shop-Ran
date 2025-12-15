@@ -35,7 +35,6 @@ export class CreateProductDto {
 
   @IsString()
   @IsOptional()
-  @MaxLength(300)
   @ApiProperty({ required: false })
   description?: string;
 

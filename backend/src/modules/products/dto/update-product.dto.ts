@@ -34,7 +34,6 @@ export class UpdateProductDto {
 
   @IsString()
   @IsOptional()
-  @MaxLength(300)
   @ApiPropertyOptional()
   description?: string;
 

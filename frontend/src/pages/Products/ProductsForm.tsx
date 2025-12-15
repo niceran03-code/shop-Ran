@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Form, Input, InputNumber, Button, message, Select } from "antd";
 import api from "../../utils/axios";
 import { Switch } from "antd";
+import RichTextEditor from "../../components/RichTextEditor";
 
 interface Category {
   id: number;
@@ -79,7 +80,7 @@ export const ProductsForm = ({ initialData, onSubmit }: ProductFormProps) => {
       </Form.Item>
 
       <Form.Item label="Description" name="description">
-        <Input.TextArea rows={4} placeholder="Product description" />
+        <RichTextEditor />
       </Form.Item>
 
       <Form.Item
