@@ -53,6 +53,14 @@ export default function LoginPage() {
           <Button type="primary" htmlType="submit" loading={loading} block>
             Login
           </Button>
+          <Button
+            type="link"
+            block
+            style={{ marginTop: 8 }}
+            onClick={() => navigate("/register")}
+          >
+            No account? Register
+          </Button>
         </Form>
       </Card>
     </div>

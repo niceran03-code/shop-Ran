@@ -1,5 +1,6 @@
 // frontend/src/components/layout/FormContainer.tsx
-import { ReactNode } from "react";
+// frontend/src/components/layout/FormContainer.tsx
+import type { ReactNode } from "react";
 import { Card } from "antd";
 
 interface FormContainerProps {
