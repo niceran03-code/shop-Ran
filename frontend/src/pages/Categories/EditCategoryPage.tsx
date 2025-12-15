@@ -1,11 +1,15 @@
+// frontend/src/pages/Categories/EditCategoryPage.tsx
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import api from "../../utils/axios";
-import { message } from "antd";
+import { message, Button } from "antd";
 import CategoryForm from "./CategoryForm";
+import FormContainer from "../../components/Layout/FormContainer";
 
 export default function EditCategoryPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
+
   const [category, setCategory] = useState(null);
   const [categories, setCategories] = useState([]);
 
@@ -15,23 +19,31 @@ export default function EditCategoryPage() {
   }, [id]);
 
   const submit = async (values: any) => {
-    try {
-      await api.patch(`/categories/${id}`, values);
-      message.success("Category updated");
-      history.back();
-    } catch {
-      message.error("Update failed");
-    }
+    await api.patch(`/categories/${id}`, values);
+    message.success("Category updated");
+    navigate("/categories");
   };
 
   if (!category) return null;
 
   return (
-    <CategoryForm
-      initialValues={category}
-      categories={categories}
-      onSubmit={submit}
-      submitText="Update"
-    />
+    <div>
+      {/* Back Button */}
+      <Button
+        style={{ marginBottom: 16 }}
+        onClick={() => navigate("/categories")}
+      >
+        Back to Categories
+      </Button>
+
+      <FormContainer title="Edit Category" maxWidth={560}>
+        <CategoryForm
+          initialValues={category}
+          categories={categories}
+          onSubmit={submit}
+          submitText="Update"
+        />
+      </FormContainer>
+    </div>
   );
 }

@@ -4,6 +4,7 @@ import api from "../../utils/axios";
 import { message, Button } from "antd";
 import { useNavigate } from "react-router-dom";
 import CategoryForm from "./CategoryForm";
+import FormContainer from "../../components/Layout/FormContainer";
 
 export default function CreateCategoryPage() {
   const [categories, setCategories] = useState([]);
@@ -14,13 +15,9 @@ export default function CreateCategoryPage() {
   }, []);
 
   const submit = async (values: any) => {
-    try {
-      await api.post("/categories", values);
-      message.success("Category created");
-      navigate("/categories");
-    } catch {
-      message.error("Create failed");
-    }
+    await api.post("/categories", values);
+    message.success("Category created");
+    navigate("/categories");
   };
 
   return (
@@ -32,11 +29,13 @@ export default function CreateCategoryPage() {
         Back to Categories
       </Button>
 
-      <CategoryForm
-        categories={categories}
-        onSubmit={submit}
-        submitText="Create"
-      />
+      <FormContainer title="Create Category" maxWidth={560}>
+        <CategoryForm
+          categories={categories}
+          onSubmit={submit}
+          submitText="Create"
+        />
+      </FormContainer>
     </div>
   );
 }
