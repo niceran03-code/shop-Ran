@@ -8,6 +8,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { ProductModule } from './modules/products/product.module';
 import { UsersModule } from './modules/users/user.module';
 import { CategoryModule } from './modules/categories/category.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { CategoryModule } from './modules/categories/category.module';
     UsersModule,
     ProductModule,
     CategoryModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],
