@@ -1,5 +1,5 @@
 // frontend/src/pages/Products/ProductsPage.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Table,
   Button,
@@ -24,9 +24,19 @@ interface CategoryNode {
   children?: CategoryNode[];
 }
 
+interface UserOption {
+  id: number;
+  username: string;
+  email: string;
+}
+
 export default function ProductsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  // ✅ URL params（必须在组件内）
+  const categoryIdFromUrl = searchParams.get("category");
+  const userIdFromUrl = searchParams.get("userId");
 
   // ---------------------------
   // Pagination
@@ -36,6 +46,7 @@ export default function ProductsPage() {
   const [total, setTotal] = useState(0);
   const totalPages = Math.ceil(total / pageSize);
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
+
   // ---------------------------
   // Data
   // ---------------------------
@@ -47,10 +58,19 @@ export default function ProductsPage() {
   const [categoryTree, setCategoryTree] = useState<any[]>([]);
 
   // ---------------------------
+  // Users options (for Select)
+  // ---------------------------
+  const [userOptions, setUserOptions] = useState<UserOption[]>([]);
+  const [userLoading, setUserLoading] = useState(false);
+
+  // ---------------------------
   // Draft filters（输入态，不触发搜索）
   // ---------------------------
   const [draftName, setDraftName] = useState("");
   const [draftCategoryId, setDraftCategoryId] = useState<number | undefined>();
+
+  // ✅ Draft user filter（下拉选择）
+  const [draftUserId, setDraftUserId] = useState<number | undefined>();
 
   // ---------------------------
   // Applied filters（生效态，用于查询）
@@ -60,20 +80,8 @@ export default function ProductsPage() {
     number | undefined
   >();
 
-  // URL category (?category=ID)
-  const categoryIdFromUrl = searchParams.get("category");
-
-  // ---------------------------
-  // Draft user filters
-  // ---------------------------
-  const [draftUserId, setDraftUserId] = useState("");
-  const [draftUserName, setDraftUserName] = useState("");
-
-  // ---------------------------
-  // Applied user filters
-  // ---------------------------
+  // ✅ Applied user filter（后端用 userId）
   const [userIdFilter, setUserIdFilter] = useState<number | undefined>();
-  const [userNameFilter, setUserNameFilter] = useState<string | undefined>();
 
   // ---------------------------
   // Fetch category tree
@@ -87,7 +95,6 @@ export default function ProductsPage() {
     }
   };
 
-  // 把后端 category tree 转成 TreeSelect 结构
   const transformToTreeSelect = (nodes: CategoryNode[]): any[] => {
     return nodes.map((node) => ({
       title: node.name,
@@ -100,19 +107,58 @@ export default function ProductsPage() {
   };
 
   // ---------------------------
+  // Fetch users options（用于下拉）
+  // 说明：这里用你现有 /users 接口（需要支持分页版 data/total，后端你马上会改）
+  // 先取前 200 个用户作为选项，足够后台管理使用
+  // ---------------------------
+  const fetchUserOptions = async () => {
+    setUserLoading(true);
+    try {
+      const res = await api.get("/users", {
+        params: { page: 1, pageSize: 200 },
+      });
+
+      // 兼容两种返回：分页 {data,total} 或旧数组
+      const list: any[] = Array.isArray(res.data) ? res.data : res.data.data;
+
+      const options = (list || []).map((u) => ({
+        id: u.id,
+        username: u.username,
+        email: u.email,
+      }));
+
+      setUserOptions(options);
+    } catch {
+      // 不强制报错（防止你后端还没改完导致页面无法使用）
+      setUserOptions([]);
+    } finally {
+      setUserLoading(false);
+    }
+  };
+
+  const userSelectOptions = useMemo(
+    () =>
+      userOptions.map((u) => ({
+        value: u.id,
+        // label 做得“好看+可搜索”
+        label: `${u.username} (${u.email}) #${u.id}`,
+      })),
+    [userOptions]
+  );
+
+  // ---------------------------
   // Fetch products（唯一入口）
   // ---------------------------
-  // frontend/src/pages/Products/ProductsPage.tsx
   const fetchProducts = async () => {
     try {
-      const categoryIdFromUrl = searchParams.get("category");
-
+      // ✅ URL 优先级：URL > Filter
       const effectiveCategoryId =
         categoryIdFromUrl !== null
           ? Number(categoryIdFromUrl)
           : categoryIdFilter;
 
-      console.log("fetch with categoryId:", effectiveCategoryId);
+      const effectiveUserId =
+        userIdFromUrl !== null ? Number(userIdFromUrl) : userIdFilter;
 
       const res = await api.get("/product", {
         params: {
@@ -120,8 +166,8 @@ export default function ProductsPage() {
           pageSize,
           name: searchName || undefined,
           categoryId: effectiveCategoryId || undefined,
-          userId: userIdFilter,
-          userName: userNameFilter,
+          // ✅ 关键：用 effectiveUserId，而不是 userIdFilter
+          userId: effectiveUserId || undefined,
         },
       });
 
@@ -137,6 +183,7 @@ export default function ProductsPage() {
   // ---------------------------
   useEffect(() => {
     fetchCategories();
+    fetchUserOptions(); // ✅ 进页面加载用户下拉
   }, []);
 
   useEffect(() => {
@@ -147,26 +194,35 @@ export default function ProductsPage() {
     searchName,
     categoryIdFilter,
     userIdFilter,
-    userNameFilter,
+    categoryIdFromUrl,
+    userIdFromUrl,
   ]);
 
+  // URL category (?category=ID) → 自动筛选（你原来就有）
   useEffect(() => {
     if (categoryIdFromUrl) {
       const id = Number(categoryIdFromUrl);
-
-      // 1️⃣ 填充输入态（UI 显示）
       setDraftCategoryId(id);
-
-      // 2️⃣ 生效搜索条件（等价于点 Search）
       setCategoryIdFilter(id);
-
-      // ⚠️ 关键：如果你有其他 search 条件，明确保持不变
-      // setSearchName(prev => prev);
-
-      // 3️⃣ 回到第一页
       setPage(1);
     }
   }, [categoryIdFromUrl]);
+
+  // ✅ URL userId (?userId=ID) → 自动筛选（新增）
+  useEffect(() => {
+    if (userIdFromUrl) {
+      const id = Number(userIdFromUrl);
+
+      // 填充 UI（下拉显示）
+      setDraftUserId(id);
+
+      // 生效 filter
+      setUserIdFilter(id);
+
+      // 回到第一页
+      setPage(1);
+    }
+  }, [userIdFromUrl]);
 
   // ---------------------------
   // Delete (soft delete)
@@ -198,7 +254,7 @@ export default function ProductsPage() {
     try {
       await api.patch(`/product/${id}/status`);
       message.success("Status updated");
-      fetchProducts(); // ⭐ 关键：刷新当前列表
+      fetchProducts();
     } catch {
       message.error("Failed to update status");
     }
@@ -231,7 +287,7 @@ export default function ProductsPage() {
   };
 
   // ---------------------------
-  // Table columns（⭐ 自适应保留 ⭐）
+  // Table columns（你原来的都保留）
   // ---------------------------
   const columns: ColumnsType<any> = [
     { title: "ID", dataIndex: "id", width: 60, fixed: "left" },
@@ -321,19 +377,13 @@ export default function ProductsPage() {
             flexWrap: "wrap",
           }}
         >
-          {" "}
           <Button danger onClick={handleBatchDelete}>
-            {" "}
-            Batch Delete{" "}
-          </Button>{" "}
-          <Button onClick={() => handleBatchStatus(true)}>
-            {" "}
-            Batch Publish{" "}
-          </Button>{" "}
+            Batch Delete
+          </Button>
+          <Button onClick={() => handleBatchStatus(true)}>Batch Publish</Button>
           <Button onClick={() => handleBatchStatus(false)}>
-            {" "}
-            Batch Unpublish{" "}
-          </Button>{" "}
+            Batch Unpublish
+          </Button>
         </div>
       )}
 
@@ -353,18 +403,22 @@ export default function ProductsPage() {
           value={draftName}
           onChange={(e) => setDraftName(e.target.value)}
         />
-        <Input
-          placeholder="User ID"
-          style={{ width: 140 }}
-          value={draftUserId}
-          onChange={(e) => setDraftUserId(e.target.value)}
-        />
 
-        <Input
-          placeholder="User Name"
-          style={{ width: 180 }}
-          value={draftUserName}
-          onChange={(e) => setDraftUserName(e.target.value)}
+        {/* ✅ 用户下拉选择（替代手输 ID/Name） */}
+        <Select
+          showSearch
+          allowClear
+          loading={userLoading}
+          style={{ width: 320 }}
+          placeholder="Select user (search username/email/id)"
+          value={draftUserId}
+          options={userSelectOptions}
+          optionFilterProp="label"
+          onChange={(v) => setDraftUserId(v)}
+          filterOption={(input, option) => {
+            const label = String(option?.label ?? "").toLowerCase();
+            return label.includes(input.toLowerCase());
+          }}
         />
 
         <TreeSelect
@@ -384,8 +438,8 @@ export default function ProductsPage() {
             setSearchName(draftName);
             setCategoryIdFilter(draftCategoryId);
 
-            setUserIdFilter(draftUserId ? Number(draftUserId) : undefined);
-            setUserNameFilter(draftUserName || undefined);
+            // ✅ 生效 userId
+            setUserIdFilter(draftUserId || undefined);
 
             setPage(1);
           }}

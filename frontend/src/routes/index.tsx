@@ -12,6 +12,7 @@ import EditProductsPage from "../pages/Products/EditProductsPage";
 import RecycleBinPage from "../pages/Products/RecycleBinPage";
 import CreateCategoryPage from "../pages/Categories/CreateCategoryPage";
 import EditCategoryPage from "../pages/Categories/EditCategoryPage";
+import UsersPage from "../pages/Users/UsersPage";
 
 export const router = createBrowserRouter([
   {
@@ -32,6 +33,7 @@ export const router = createBrowserRouter([
     ),
     children: [
       { path: "dashboard", element: <DashboardPage /> },
+      { path: "users", element: <UsersPage /> },
       { path: "products", element: <ProductsPage /> },
       { path: "categories", element: <CategoriesPage /> },
       {

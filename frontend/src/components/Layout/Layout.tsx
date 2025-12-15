@@ -13,16 +13,19 @@ export const Layout = () => {
 
   /**
    * selectedKeys 规则：
-   * - /products            -> 高亮 Products
-   * - /products/*          -> 高亮子菜单
+   * - /products            -> 高亮 Products（父菜单）
+   * - /products/*          -> 高亮 Products（子菜单项自身高亮由 key=pathname 负责）
    * - /categories          -> 高亮 Categories
-   * - /categories/*        -> 高亮子菜单
+   * - /categories/*        -> 高亮 Categories
+   * - /users /users/*      -> 高亮 Users
    */
   const selectedKeys =
-    pathname === "/products" || pathname.startsWith("/products/edit")
-      ? ["products"]
-      : pathname === "/categories"
-      ? ["categories"]
+    pathname === "/products" || pathname.startsWith("/products/")
+      ? ["products", pathname] // products 父菜单 + 具体子项（如果存在）
+      : pathname === "/categories" || pathname.startsWith("/categories/")
+      ? ["categories", pathname]
+      : pathname === "/users" || pathname.startsWith("/users/")
+      ? ["/users"] // Users 是顶级 Menu.Item
       : [pathname];
 
   const [openKeys, setOpenKeys] = useState<string[]>([]);
@@ -97,6 +100,11 @@ export const Layout = () => {
               <Link to="/categories/create">Create Category</Link>
             </Menu.Item>
           </Menu.SubMenu>
+
+          {/* ✅ Users（新增顶级菜单项） */}
+          <Menu.Item key="/users">
+            <Link to="/users">Users</Link>
+          </Menu.Item>
         </Menu>
       </Sider>
 

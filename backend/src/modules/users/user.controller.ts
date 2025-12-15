@@ -1,3 +1,4 @@
+// backend/src/modules/users/user.controller.ts
 import {
   Body,
   Controller,
@@ -8,6 +9,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { UsersService } from './user.service';
@@ -37,14 +39,11 @@ export class UsersController {
   async create(@Body() createUserDto: CreateUserDto) {
     return new UserEntity(await this.usersService.create(createUserDto));
   }
-
   @Get()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOkResponse({ type: UserEntity, isArray: true })
-  async findAll() {
-    const users = await this.usersService.findAll();
-    return users.map((user) => new UserEntity(user));
+  async findAll(@Query('page') page = 1, @Query('pageSize') pageSize = 10) {
+    return this.usersService.findWithPagination(+page, +pageSize);
   }
 
   @Get(':id')

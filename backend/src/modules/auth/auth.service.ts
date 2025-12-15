@@ -1,9 +1,9 @@
 // src/auth/auth.service.ts
 import {
   Injectable,
-  NotFoundException,
   UnauthorizedException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
@@ -18,10 +18,13 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
+  // -----------------------------
+  // UTIL: Generate Refresh Token
+  // -----------------------------
   private generateRefreshToken(userId: number) {
     return this.jwtService.sign(
       { userId },
-      { expiresIn: '7d' }, // Refresh Token 一般设置 7 天
+      { expiresIn: '7d' }, // refresh token: 7 days
     );
   }
 
@@ -29,27 +32,39 @@ export class AuthService {
   // LOGIN
   // -----------------------------
   async login(email: string, password: string): Promise<AuthEntity> {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    // 1️⃣ 查找用户
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
 
-    if (!user) throw new NotFoundException(`No user found for email: ${email}`);
-
-    if (user.role !== 'ADMIN') {
-      throw new UnauthorizedException(
-        'Only administrators may access the admin system',
-      );
+    // 2️⃣ 账号或密码错误 → 401
+    if (!user) {
+      throw new UnauthorizedException('Invalid email or password');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) throw new UnauthorizedException('Invalid password');
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
 
+    // 3️⃣ 权限不足 → 403
+    if (user.role !== 'ADMIN') {
+      throw new ForbiddenException(
+        'Your account does not have permission to access the admin system',
+      );
+    }
+
+    // 4️⃣ 生成 Token
     const accessToken = this.jwtService.sign({ userId: user.id });
     const refreshToken = this.generateRefreshToken(user.id);
 
+    // 5️⃣ 保存 refreshToken
     await this.prisma.user.update({
       where: { id: user.id },
       data: { refreshToken },
     });
 
+    // 6️⃣ 返回登录结果
     return {
       accessToken,
       refreshToken,
@@ -57,6 +72,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         username: user.username,
+        role: user.role,
       },
     };
   }
@@ -64,33 +80,36 @@ export class AuthService {
   // -----------------------------
   // REGISTER
   // -----------------------------
-  async register(dto: RegisterDto): Promise<AuthEntity> {
+  async register(dto: RegisterDto) {
+    // 1️⃣ 邮箱唯一性校验
+    const exists = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+
+    if (exists) {
+      throw new ConflictException('Email already exists');
+    }
+
+    // 2️⃣ 加密密码
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
+    // 3️⃣ 创建用户（默认 USER）
     const user = await this.prisma.user.create({
       data: {
         email: dto.email,
         username: dto.username,
         password: hashedPassword,
+        role: 'USER',
       },
     });
 
-    const accessToken = this.jwtService.sign({ userId: user.id });
-    const refreshToken = this.generateRefreshToken(user.id);
-
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { refreshToken },
-    });
-
+    // ✅ 后台系统：注册不返回 token
     return {
-      accessToken,
-      refreshToken,
       user: {
         id: user.id,
         email: user.email,
         username: user.username,
-        role: 'USER',
+        role: user.role,
       },
     };
   }
@@ -100,20 +119,20 @@ export class AuthService {
   // -----------------------------
   async refresh(refreshToken: string): Promise<AuthEntity> {
     try {
-      // 1) 验证 refreshToken 签名是否有效
+      // 1️⃣ 校验 refreshToken
       const payload = this.jwtService.verify(refreshToken);
 
-      // 2) 从数据库查询用户
+      // 2️⃣ 查询用户
       const user = await this.prisma.user.findUnique({
         where: { id: payload.userId },
       });
 
-      // 3) 检查 refreshToken 是否与数据库存储一致
+      // 3️⃣ 校验 refreshToken 是否一致
       if (!user || user.refreshToken !== refreshToken) {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      // 4) 创建新的 Access Token
+      // 4️⃣ 生成新的 accessToken
       const newAccessToken = this.jwtService.sign({ userId: user.id });
 
       return {
@@ -123,6 +142,7 @@ export class AuthService {
           id: user.id,
           email: user.email,
           username: user.username,
+          role: user.role,
         },
       };
     } catch {

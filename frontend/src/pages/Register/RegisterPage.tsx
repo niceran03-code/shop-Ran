@@ -14,7 +14,12 @@ export default function RegisterPage() {
       await api.post("/auth/register", payload);
 
       message.success("Register success, please login");
-      navigate("/login");
+
+      navigate("/login", {
+        state: {
+          email: payload.email,
+        },
+      });
     } catch (err: any) {
       message.error(err?.response?.data?.message || "Register failed");
     }

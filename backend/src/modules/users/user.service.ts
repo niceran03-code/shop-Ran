@@ -1,3 +1,4 @@
+// backend/src/modules/users/user.service.ts
 import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -36,6 +37,31 @@ export class UsersService {
       );
     }
     return this.prisma.user.update({ where: { id }, data: updateUserDto });
+  }
+  async findWithPagination(page: number, pageSize: number) {
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.user.findMany({
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          role: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      this.prisma.user.count(),
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      pageSize,
+    };
   }
 
   async remove(id: number) {
