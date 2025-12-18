@@ -1,7 +1,7 @@
-// src/product/product.service.ts
+// src/product/products.service.ts
 import { Injectable } from '@nestjs/common';
-import { CreateProductDto } from './dto/create-product.dto';
-import { UpdateProductDto } from './dto/update-product.dto';
+import { CreateProductDto } from './dto/create-products.dto';
+import { UpdateProductDto } from './dto/update-products.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PrismaClient } from '@prisma/client';
 

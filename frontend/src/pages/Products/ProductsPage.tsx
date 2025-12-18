@@ -34,7 +34,7 @@ export default function ProductsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // ✅ URL params（必须在组件内）
+  //  URL params（必须在组件内）
   const categoryIdFromUrl = searchParams.get("category");
   const userIdFromUrl = searchParams.get("userId");
 
@@ -69,7 +69,7 @@ export default function ProductsPage() {
   const [draftName, setDraftName] = useState("");
   const [draftCategoryId, setDraftCategoryId] = useState<number | undefined>();
 
-  // ✅ Draft user filter（下拉选择）
+  //  Draft user filter（下拉选择）
   const [draftUserId, setDraftUserId] = useState<number | undefined>();
 
   // ---------------------------
@@ -80,7 +80,7 @@ export default function ProductsPage() {
     number | undefined
   >();
 
-  // ✅ Applied user filter（后端用 userId）
+  // Applied user filter（后端用 userId）
   const [userIdFilter, setUserIdFilter] = useState<number | undefined>();
 
   // ---------------------------
@@ -129,7 +129,6 @@ export default function ProductsPage() {
 
       setUserOptions(options);
     } catch {
-      // 不强制报错（防止你后端还没改完导致页面无法使用）
       setUserOptions([]);
     } finally {
       setUserLoading(false);
@@ -140,7 +139,6 @@ export default function ProductsPage() {
     () =>
       userOptions.map((u) => ({
         value: u.id,
-        // label 做得“好看+可搜索”
         label: `${u.username} (${u.email}) #${u.id}`,
       })),
     [userOptions]
@@ -151,7 +149,7 @@ export default function ProductsPage() {
   // ---------------------------
   const fetchProducts = async () => {
     try {
-      // ✅ URL 优先级：URL > Filter
+      //  URL 优先级：URL > Filter
       const effectiveCategoryId =
         categoryIdFromUrl !== null
           ? Number(categoryIdFromUrl)
@@ -160,13 +158,12 @@ export default function ProductsPage() {
       const effectiveUserId =
         userIdFromUrl !== null ? Number(userIdFromUrl) : userIdFilter;
 
-      const res = await api.get("/product", {
+      const res = await api.get("/products", {
         params: {
           page,
           pageSize,
           name: searchName || undefined,
           categoryId: effectiveCategoryId || undefined,
-          // ✅ 关键：用 effectiveUserId，而不是 userIdFilter
           userId: effectiveUserId || undefined,
         },
       });
@@ -183,7 +180,7 @@ export default function ProductsPage() {
   // ---------------------------
   useEffect(() => {
     fetchCategories();
-    fetchUserOptions(); // ✅ 进页面加载用户下拉
+    fetchUserOptions(); //  进页面加载用户下拉
   }, []);
 
   useEffect(() => {
@@ -208,7 +205,7 @@ export default function ProductsPage() {
     }
   }, [categoryIdFromUrl]);
 
-  // ✅ URL userId (?userId=ID) → 自动筛选（新增）
+  //  URL userId (?userId=ID) → 自动筛选（新增）
   useEffect(() => {
     if (userIdFromUrl) {
       const id = Number(userIdFromUrl);
@@ -237,7 +234,7 @@ export default function ProductsPage() {
       cancelText: "Cancel",
       async onOk() {
         try {
-          await api.delete(`/product/${id}`);
+          await api.delete(`/products/${id}`);
           message.success("Product moved to recycle bin");
           fetchProducts();
         } catch {
@@ -252,7 +249,7 @@ export default function ProductsPage() {
   // ---------------------------
   const toggleStatus = async (id: number) => {
     try {
-      await api.patch(`/product/${id}/status`);
+      await api.patch(`/products/${id}/status`);
       message.success("Status updated");
       fetchProducts();
     } catch {
@@ -266,7 +263,7 @@ export default function ProductsPage() {
       content: "Selected products will be moved to the recycle bin.",
       okType: "danger",
       onOk: async () => {
-        await api.post("/product/batch/delete", {
+        await api.post("/products/batch/delete", {
           ids: selectedRowKeys,
         });
         message.success("Products deleted");
@@ -277,7 +274,7 @@ export default function ProductsPage() {
   };
 
   const handleBatchStatus = async (isActive: boolean) => {
-    await api.post("/product/batch/status", {
+    await api.post("/products/batch/status", {
       ids: selectedRowKeys,
       isActive,
     });
@@ -287,7 +284,7 @@ export default function ProductsPage() {
   };
 
   // ---------------------------
-  // Table columns（你原来的都保留）
+  // Table columns
   // ---------------------------
   const columns: ColumnsType<any> = [
     { title: "ID", dataIndex: "id", width: 60, fixed: "left" },
@@ -404,7 +401,7 @@ export default function ProductsPage() {
           onChange={(e) => setDraftName(e.target.value)}
         />
 
-        {/* ✅ 用户下拉选择（替代手输 ID/Name） */}
+        {/*用户下拉选择（替代手输 ID/Name） */}
         <Select
           showSearch
           allowClear
@@ -438,7 +435,7 @@ export default function ProductsPage() {
             setSearchName(draftName);
             setCategoryIdFilter(draftCategoryId);
 
-            // ✅ 生效 userId
+            //  生效 userId
             setUserIdFilter(draftUserId || undefined);
 
             setPage(1);

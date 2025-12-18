@@ -1,4 +1,4 @@
-// backend/src/modules/products/dto/create-product.dto.ts
+// backend/src/modules/products/dto/create-products.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsBoolean,

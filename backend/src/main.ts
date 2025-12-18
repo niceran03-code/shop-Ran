@@ -14,8 +14,9 @@ async function bootstrap() {
   });
 
   //  静态资源（图片）
-  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
-    prefix: '/uploads',
+  //  将磁盘目录 resource 映射为 URL 前缀 /resource
+  app.useStaticAssets(join(__dirname, '..', 'resource'), {
+    prefix: '/resource',
   });
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));

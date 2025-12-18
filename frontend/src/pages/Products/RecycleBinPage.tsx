@@ -15,7 +15,7 @@ export default function RecycleBinPage() {
     try {
       const token = localStorage.getItem("accessToken");
 
-      const res = await api.get("/product/deleted", {
+      const res = await api.get("/products/deleted", {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -44,7 +44,7 @@ export default function RecycleBinPage() {
         try {
           const token = localStorage.getItem("accessToken");
 
-          await api.patch(`/product/restore/${id}`, null, {
+          await api.patch(`/products/${id}/restore`, null, {
             headers: { Authorization: `Bearer ${token}` },
           });
 
@@ -61,7 +61,7 @@ export default function RecycleBinPage() {
       title: "Restore selected products?",
       content: "Selected products will become active again.",
       onOk: async () => {
-        await api.post("/product/batch/restore", {
+        await api.post("/products/batch/restore", {
           ids: selectedRowKeys,
         });
         message.success("Products restored");
@@ -77,7 +77,7 @@ export default function RecycleBinPage() {
       content: "This action cannot be undone.",
       okType: "danger",
       onOk: async () => {
-        await api.post("/product/batch/force-delete", {
+        await api.post("/products/batch/force-delete", {
           ids: selectedRowKeys,
         });
         message.success("Products permanently deleted");
@@ -102,7 +102,7 @@ export default function RecycleBinPage() {
         try {
           const token = localStorage.getItem("accessToken");
 
-          await api.delete(`/product/force/${id}`, {
+          await api.delete(`/products/force/${id}`, {
             headers: { Authorization: `Bearer ${token}` },
           });
 

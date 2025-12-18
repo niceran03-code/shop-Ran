@@ -5,7 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { ProductModule } from './modules/products/product.module';
+import { ProductModule } from './modules/products/products.module';
 import { UsersModule } from './modules/users/user.module';
 import { CategoryModule } from './modules/categories/category.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';

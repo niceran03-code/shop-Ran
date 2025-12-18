@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { extname, join } from 'path';
 
 @Controller('upload')
 export class UploadController {
@@ -15,7 +15,8 @@ export class UploadController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: './uploads/images',
+        // 落盘到 backend/resource/images（与 main.ts 的静态资源映射保持一致）
+        destination: join(process.cwd(), 'resource', 'images'),
         filename: (_, file, cb) => {
           const filename =
             Date.now() + '-' + Math.random().toString(36).slice(2);
@@ -35,7 +36,7 @@ export class UploadController {
   )
   uploadImage(@UploadedFile() file: Express.Multer.File) {
     return {
-      url: `http://localhost:3000/uploads/images/${file.filename}`,
+      url: `http://localhost:3000/resource/images/${file.filename}`,
     };
   }
 }

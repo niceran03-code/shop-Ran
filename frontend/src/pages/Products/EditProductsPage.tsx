@@ -15,7 +15,7 @@ const EditProductsPage = () => {
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const res = await api.get(`/product/${id}`);
+        const res = await api.get(`/products/${id}`);
         setInitialData(res.data);
       } catch {
         message.error("Failed to load product");
@@ -28,7 +28,7 @@ const EditProductsPage = () => {
   }, [id]);
 
   const handleUpdate = async (values: any) => {
-    await api.patch(`/product/${id}`, values);
+    await api.patch(`/products/${id}`, values);
     message.success("Product updated successfully");
     navigate("/products");
   };

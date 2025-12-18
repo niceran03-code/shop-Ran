@@ -9,7 +9,7 @@ const CreateProductsPage = () => {
   const navigate = useNavigate();
 
   const handleCreate = async (values: any) => {
-    await api.post("/product", values);
+    await api.post("/products", values);
     message.success("Product created successfully");
     navigate("/products");
   };

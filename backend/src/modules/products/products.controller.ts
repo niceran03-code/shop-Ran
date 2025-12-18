@@ -1,4 +1,4 @@
-// backend/src/modules/products/product.controller.ts
+// backend/src/modules/products/products.controller.ts
 import {
   Controller,
   Get,
@@ -19,10 +19,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
-import { ProductService } from './product.service';
-import { CreateProductDto } from './dto/create-product.dto';
-import { UpdateProductDto } from './dto/update-product.dto';
-import { ProductEntity } from './entities/product.entity';
+import { ProductService } from './products.service';
+// 注意：文件名已改为 products.*，类名保持 Product* 不影响 NestJS 行为
+import { CreateProductDto } from './dto/create-products.dto';
+import { UpdateProductDto } from './dto/update-products.dto';
+import { ProductEntity } from './entities/products.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -32,9 +33,9 @@ import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 // 商品控制器：ADMIN 专用，支持 CRUD、回收站、批量操作与状态切换
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
-@Controller('product')
+@Controller('products')
 @ApiBearerAuth()
-@ApiTags('product')
+@ApiTags('products')
 export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
@@ -128,9 +129,9 @@ export class ProductController {
 
   // ================================
   //  恢复商品：从回收站恢复
-  // PATCH /product/restore/:id
+  // PATCH /products/:id/restore
   // ================================
-  @Patch('restore/:id')
+  @Patch(':id/restore')
   @ApiOkResponse({ type: ProductEntity })
   restore(@Param('id', ParseIntPipe) id: number) {
     // 恢复商品（deletedAt = null，isActive = true）
